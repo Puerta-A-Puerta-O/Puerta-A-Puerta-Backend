@@ -1,0 +1,80 @@
+# ==========================================
+# 1. Dependencias
+# ==========================================
+node_modules/
+jspm_packages/
+.pnp
+.pnp.js
+
+# ==========================================
+# 2. Variables de Entorno y Seguridad (¡CRÍTICO!)
+# ==========================================
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.pem
+*.key
+*.cert
+
+# Excepción: Mantener siempre la plantilla de ejemplo
+!.env.example
+
+# ==========================================
+# 3. Logs y Archivos del Sistema
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ==========================================
+# 4. Archivos Temporales y Caché
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.cache/
+.eslintcache
+
+# ==========================================
+# 5. Entornos de Desarrollo e IDEs
+# ==========================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==========================================
+# 6. Cobertura de Pruebas y Reportes (Jest/Supertest)
+# ==========================================
+coverage/
+.nyc_output/
+
+# ==========================================
+# 7. Build y Distribución (si usas TypeScript o Bundlers)
+# ==========================================
+dist/
+build/
+
+# ==========================================
+# 8. Datos de Bases de Datos y Docker Locales
+# ==========================================
+postgres_data/
+pgdata/
+*.sqlite
+*.db
