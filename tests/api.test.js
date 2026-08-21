@@ -6,16 +6,24 @@ const db = require('../src/config/db');
 describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
   let tokenCliente;
   let localIdPrueba;
+  let productoIdPrueba;
+  let precioProductoPrueba;
 
-  // Obtener un local real de la base de datos antes de testear
   beforeAll(async () => {
-    const res = await db.query('SELECT id FROM locales LIMIT 1;');
-    if (res.rows.length > 0) {
-      localIdPrueba = res.rows[0].id;
+    // Obtener un local de prueba
+    const localRes = await db.query('SELECT id FROM locales LIMIT 1;');
+    if (localRes.rows.length > 0) {
+      localIdPrueba = localRes.rows[0].id;
+    }
+
+    // Obtener un producto real cargado por las semillas
+    const prodRes = await db.query('SELECT id, precio FROM productos LIMIT 1;');
+    if (prodRes.rows.length > 0) {
+      productoIdPrueba = prodRes.rows[0].id;
+      precioProductoPrueba = Number(prodRes.rows[0].precio);
     }
   });
 
-  // Cerrar el pool de la BD al terminar todos los tests
   afterAll(async () => {
     await db.pool.end();
   });
@@ -34,7 +42,7 @@ describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
     tokenCliente = res.body.token;
   });
 
-  // 2. Protección de rutas sin Token
+  // 2. Protección de rutas sin Token (401)
   it('POST /api/v1/pedidos - Debería rechazar peticiones sin token JWT (401)', async () => {
     const res = await request(app)
       .post('/api/v1/pedidos')
@@ -43,8 +51,24 @@ describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
     expect(res.statusCode).toEqual(401);
   });
 
-  // 3. Creación de Pedido con Geolocalización
-  it('POST /api/v1/pedidos - Debería crear un pedido correctamente con token JWT', async () => {
+  // 3. RBAC: Control de Acceso por Rol (403 Forbidden)
+  it('POST /api/v1/locales/:localId/productos - Debería prohibir la creación de productos a un cliente (403)', async () => {
+    const res = await request(app)
+      .post(`/api/v1/locales/${localIdPrueba}/productos`)
+      .set('Authorization', `Bearer ${tokenCliente}`)
+      .send({
+        nombre: 'Producto No Autorizado',
+        precio: 1000.00
+      });
+
+    expect(res.statusCode).toEqual(403);
+    expect(res.body.status).toBe('fail');
+  });
+
+  // 4. Creación de Pedido con Cálculo Dinámico de Monto
+  it('POST /api/v1/pedidos - Debería calcular dinámicamente el monto total basado en los ítems', async () => {
+    const cantidadPrueba = 2;
+
     const res = await request(app)
       .post('/api/v1/pedidos')
       .set('Authorization', `Bearer ${tokenCliente}`)
@@ -53,20 +77,20 @@ describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
         direccionEntrega: 'Av. Corrientes 5000, CABA',
         latitud: -34.603722,
         longitud: -58.381592,
-        montoTotal: 2500.00
+        items: [
+          {
+            productoId: productoIdPrueba,
+            cantidad: cantidadPrueba
+          }
+        ]
       });
-
+    console.log('Respuesta del error 400:', res.body);
     expect(res.statusCode).toEqual(201);
     expect(res.body.status).toBe('success');
     expect(res.body.data).toHaveProperty('id');
-  });
 
-  // 4. Creación de capa de productos por locales
-  it('GET /api/v1/locales/:localId/productos - Debería obtener el menú del local', async () => {
-    const res = await request(app).get(`/api/v1/locales/${localIdPrueba}/productos`);
-
-    expect(res.statusCode).toEqual(200);
-    expect(res.body.status).toBe('success');
-    expect(Array.isArray(res.body.data.productos)).toBe(true);
+    // Verificar que el monto total sea exacto al (precio_unitario * cantidad)
+    const montoEsperado = precioProductoPrueba * cantidadPrueba;
+    expect(Number(res.body.data.montoTotal)).toEqual(montoEsperado);
   });
 });

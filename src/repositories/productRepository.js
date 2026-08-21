@@ -2,6 +2,17 @@
 const db = require('../config/db');
 
 class ProductRepository {
+  // Método individual necesario para validar precios y stock en OrderService
+  async findById(id) {
+    const query = `
+      SELECT id, local_id, categoria_id, nombre, descripcion, precio, disponible, imagen_url
+      FROM productos
+      WHERE id = $1;
+    `;
+    const { rows } = await db.query(query, [id]);
+    return rows[0] || null;
+  }
+
   async findByLocalId(localId) {
     const query = `
       SELECT p.id, p.nombre, p.descripcion, p.precio, p.disponible, p.imagen_url,

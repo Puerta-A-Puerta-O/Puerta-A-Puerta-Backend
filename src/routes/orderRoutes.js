@@ -12,7 +12,7 @@ router.post(
   '/',
   validateCreateOrder,
   validateRequest,
-  (req, res, next) => orderController.create(req, res, next)
+  (req, res, next) => orderController.createOrder(req, res, next)
 );
 
 router.patch(

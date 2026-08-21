@@ -2,57 +2,29 @@
 const orderService = require('../services/orderServices');
 
 class OrderController {
-  async create(req, res, next) {
+  async createOrder(req, res, next) {
     try {
-      const clienteId = req.user.id; // Del token JWT
-      const { localId, direccionEntrega, latitud, longitud, montoTotal } = req.body;
+      const clienteId = req.user.id; // Obtenido del token JWT
+      const { localId, direccionEntrega, latitud, longitud, items } = req.body;
 
-      const order = await orderService.createOrder({
+      const nuevoPedido = await orderService.createOrder({
         clienteId,
         localId,
         direccionEntrega,
         latitud,
         longitud,
-        montoTotal,
+        items,
       });
 
-      return res.status(201).json({
+      res.status(201).json({
         status: 'success',
-        data: order,
+        data: nuevoPedido,
       });
     } catch (error) {
-      next(error);
-    }
-  }
-
-  async assignDriver(req, res, next) {
-    try {
-      const { pedidoId } = req.params;
-      const { repartidorId } = req.body;
-
-      const updated = await orderService.assignDriver(pedidoId, repartidorId);
-      return res.status(200).json({
-        status: 'success',
-        data: updated,
+      res.status(400).json({
+        status: 'fail',
+        mensaje: error.message,
       });
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async changeStatus(req, res, next) {
-    try {
-      const { pedidoId } = req.params;
-      const { estado } = req.body;
-      const usuarioId = req.user.id;
-
-      const updated = await orderService.changeOrderStatus(pedidoId, estado, usuarioId);
-      return res.status(200).json({
-        status: 'success',
-        data: updated,
-      });
-    } catch (error) {
-      next(error);
     }
   }
 }

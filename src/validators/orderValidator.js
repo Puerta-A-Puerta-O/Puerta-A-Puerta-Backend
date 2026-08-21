@@ -12,8 +12,14 @@ const validateCreateOrder = [
     .isFloat({ min: -90, max: 90 }).withMessage('La latitud debe ser un número válido entre -90 y 90'),
   body('longitud')
     .isFloat({ min: -180, max: 180 }).withMessage('La longitud debe ser un número válido entre -180 y 180'),
-  body('montoTotal')
-    .isFloat({ gt: 0 }).withMessage('El monto total debe ser un número mayor a 0'),
+  
+  // Reemplazamos montoTotal por la validación del array de productos
+  body('items')
+    .isArray({ min: 1 }).withMessage('Debe incluir al menos un producto en el pedido'),
+  body('items.*.productoId')
+    .isUUID().withMessage('El ID del producto debe ser un UUID válido'),
+  body('items.*.cantidad')
+    .isInt({ min: 1 }).withMessage('La cantidad del producto debe ser un entero mayor o igual a 1'),
 ];
 
 const validateChangeStatus = [
