@@ -60,4 +60,13 @@ describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
     expect(res.body.status).toBe('success');
     expect(res.body.data).toHaveProperty('id');
   });
+
+  // 4. Creación de capa de productos por locales
+  it('GET /api/v1/locales/:localId/productos - Debería obtener el menú del local', async () => {
+    const res = await request(app).get(`/api/v1/locales/${localIdPrueba}/productos`);
+
+    expect(res.statusCode).toEqual(200);
+    expect(res.body.status).toBe('success');
+    expect(Array.isArray(res.body.data.productos)).toBe(true);
+  });
 });

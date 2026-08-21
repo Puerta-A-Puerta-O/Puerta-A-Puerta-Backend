@@ -6,6 +6,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const errorHandler = require('./middlewares/errorHandler');
+const productRoutes = require('./routes/productRoutes');
 
 const app = express();
 
@@ -15,6 +16,8 @@ app.use(express.json());
 // Rutas
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/pedidos', orderRoutes);
+app.use('/api/v1/locales/:localId/productos', productRoutes);
+
 
 // Manejo de 404
 app.use((req, res, next) => {
