@@ -64,6 +64,37 @@ CREATE TABLE pedido_ubicaciones (
 );
 
 -- ==========================================
+-- MÓDULO DE PRODUCTOS Y MENÚ
+-- ==========================================
+
+-- 8. Tabla de Categorías de Productos
+CREATE TABLE categorias (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    local_id UUID NOT NULL REFERENCES locales(id) ON DELETE CASCADE,
+    nombre VARCHAR(80) NOT NULL,
+    orden INT DEFAULT 0,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9. Tabla de Productos
+CREATE TABLE productos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    local_id UUID NOT NULL REFERENCES locales(id) ON DELETE CASCADE,
+    categoria_id UUID REFERENCES categorias(id) ON DELETE SET NULL,
+    nombre VARCHAR(120) NOT NULL,
+    descripcion TEXT,
+    precio NUMERIC(10, 2) NOT NULL,
+    disponible BOOLEAN DEFAULT true,
+    imagen_url TEXT,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices de búsqueda para el catálogo
+CREATE INDEX idx_categorias_local ON categorias(local_id);
+CREATE INDEX idx_productos_local ON productos(local_id);
+CREATE INDEX idx_productos_categoria ON productos(categoria_id);
+
+-- ==========================================
 -- ÍNDICES DE RENDIMIENTO Y GEOESPACIALES (GIST)
 -- ==========================================
 
