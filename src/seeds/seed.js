@@ -8,20 +8,20 @@ async function seed() {
     console.log('🌱 Iniciando la siembra de datos de prueba...');
     await client.query('BEGIN');
 
-    // 1. Limpiar tablas existentes
+    // 1. Limpiar tablas
     await client.query('TRUNCATE pedidos, pedido_historial_estados, locales, usuarios RESTART IDENTITY CASCADE;');
 
-    // 2. Crear Usuarios de prueba
-    const passwordHash = await bcrypt.hash('Password123!', 10);
+    // 2. Crear Usuarios con hash y teléfono
+    const password = await bcrypt.hash('Password123!', 10);
     
     const insertUsersQuery = `
-      INSERT INTO usuarios (nombre, email, password_hash, rol)
+      INSERT INTO usuarios (nombre, email, password, telefono, rol)
       VALUES 
-        ('Cliente Prueba', 'cliente@prueba.com', $1, 'cliente'),
-        ('Repartidor Prueba', 'repartidor@prueba.com', $1, 'repartidor')
+        ('Cliente Prueba', 'cliente@prueba.com', $1, '+541112345678', 'cliente'),
+        ('Repartidor Prueba', 'repartidor@prueba.com', $1, '+541187654321', 'repartidor')
       RETURNING id, rol;
     `;
-    const usersRes = await client.query(insertUsersQuery, [passwordHash]);
+    const usersRes = await client.query(insertUsersQuery, [password]);
     console.log(`✅ Usuarios creados: ${usersRes.rows.length}`);
 
     // 3. Crear Local comercial con coordenadas PostGIS

@@ -1,5 +1,15 @@
 // src/index.js
-const express = require('express');
+
+// src/index.js
+const app = require('./app');
+require('dotenv').config();
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Backend escuchando en puerto ${PORT}`);
+});
+/*const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -30,4 +40,4 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Backend escuchando en puerto ${PORT}`);
-});
+});*/
