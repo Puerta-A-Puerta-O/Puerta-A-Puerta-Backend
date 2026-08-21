@@ -94,6 +94,19 @@ CREATE INDEX idx_categorias_local ON categorias(local_id);
 CREATE INDEX idx_productos_local ON productos(local_id);
 CREATE INDEX idx_productos_categoria ON productos(categoria_id);
 
+-- 10. Tabla de Detalle/Ítems del Pedido
+CREATE TABLE pedido_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    pedido_id UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+    producto_id UUID NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
+    cantidad INT NOT NULL CHECK (cantidad > 0),
+    precio_unitario NUMERIC(10, 2) NOT NULL,
+    subtotal NUMERIC(10, 2) NOT NULL,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_pedido_items_pedido ON pedido_items(pedido_id);
+
 -- ==========================================
 -- ÍNDICES DE RENDIMIENTO Y GEOESPACIALES (GIST)
 -- ==========================================
