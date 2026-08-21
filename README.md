@@ -31,3 +31,24 @@ src/
 ├── validators/      # Middleware de esquemas de validación (express-validator)
 ├── middlewares/     # Seguridad (JWT) y Manejo Global de Errores
 └── utils/           # Constantes, tipos de error y helpers
+
+🔌 Rutas Principales de la API (/api/v1)
+🔐 Autenticación (/auth)
+POST /api/v1/auth/register - Registro de usuarios (Clientes, Repartidores).
+
+POST /api/v1/auth/login - Autenticación y obtención de JWT Token.
+
+📦 Pedidos (/pedidos) (Requiere Header Authorization: Bearer <TOKEN>)
+POST /api/v1/pedidos - Creación de pedido con ubicación de entrega (PostGIS).
+
+PATCH /api/v1/pedidos/:pedidoId/asignar-repartidor - Asignación de repartidor.
+
+PATCH /api/v1/pedidos/:pedidoId/estado - Transición en la Máquina de Estados.
+
+📡 Eventos WebSocket (Socket.io)
+unirse_a_pedido - Suscribe a la app del cliente a la sala del pedido (pedido_{id}).
+
+actualizar_ubicacion - Recibe coordenadas del repartidor, calcula la distancia restante y emite repartidor_en_puerta si entra en la geocerca de 100m.
+
+📄 Licencia
+Este proyecto se encuentra bajo la Licencia MIT.
