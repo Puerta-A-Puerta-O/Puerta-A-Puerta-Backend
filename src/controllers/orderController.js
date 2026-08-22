@@ -27,6 +27,28 @@ class OrderController {
       });
     }
   }
+
+  //método para manejar el cambio de estado mediante peticiones del cliente/local/repartidor
+
+  async changeStatus(req, res, next) {
+    try {
+      const { pedidoId } = req.params;
+      const { estado } = req.body;
+      const usuarioId = req.user.id;
+
+      const pedidoActualizado = await orderService.changeOrderStatus(pedidoId, estado, usuarioId);
+
+      res.status(200).json({
+        status: 'success',
+        data: pedidoActualizado,
+      });
+    } catch (error) {
+      res.status(400).json({
+        status: 'fail',
+        mensaje: error.message,
+      });
+    }
+  }
 }
 
 module.exports = new OrderController();

@@ -8,15 +8,16 @@ async function seed() {
     console.log('🌱 Iniciando la siembra de datos...');
     await client.query('BEGIN');
 
-    // 1. Limpiar tablas
+    // 1. Limpiar tablas en orden
     await client.query('TRUNCATE productos, categorias, pedidos, pedido_historial_estados, locales, usuarios RESTART IDENTITY CASCADE;');
 
-    // 2. Crear Usuarios
+    // 2. Crear Usuarios (Cliente, Admin de Local y Repartidor)
     const password = await bcrypt.hash('Password123!', 10);
     const insertUsersQuery = `
       INSERT INTO usuarios (nombre, email, password, telefono, rol)
       VALUES 
         ('Cliente Prueba', 'cliente@prueba.com', $1, '+541112345678', 'cliente'),
+        ('Admin Local Prueba', 'local@prueba.com', $1, '+541155556666', 'admin_local'),
         ('Repartidor Prueba', 'repartidor@prueba.com', $1, '+541187654321', 'repartidor')
       RETURNING id, rol;
     `;

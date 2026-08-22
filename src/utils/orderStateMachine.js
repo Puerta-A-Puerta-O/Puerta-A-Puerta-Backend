@@ -1,5 +1,4 @@
 // src/utils/orderStateMachine.js
-
 const ESTADOS = {
   CREADO: 'creado',
   CONFIRMADO: 'confirmado',
@@ -10,20 +9,22 @@ const ESTADOS = {
   CANCELADO: 'cancelado',
 };
 
-// Mapa de transiciones permitidas según el estado actual
-const TRANSICIONES_PERMITIDAS = {
+const TRANSICIONES_VALIDAS = {
   [ESTADOS.CREADO]: [ESTADOS.CONFIRMADO, ESTADOS.CANCELADO],
   [ESTADOS.CONFIRMADO]: [ESTADOS.EN_PREPARACION, ESTADOS.CANCELADO],
   [ESTADOS.EN_PREPARACION]: [ESTADOS.LISTO_PARA_RETIRAR, ESTADOS.CANCELADO],
   [ESTADOS.LISTO_PARA_RETIRAR]: [ESTADOS.EN_CAMINO, ESTADOS.CANCELADO],
   [ESTADOS.EN_CAMINO]: [ESTADOS.ENTREGADO, ESTADOS.CANCELADO],
-  [ESTADOS.ENTREGADO]: [], // Estado final
-  [ESTADOS.CANCELADO]: [], // Estado final
+  [ESTADOS.ENTREGADO]: [],
+  [ESTADOS.CANCELADO]: [],
 };
 
 function esTransicionValida(estadoActual, nuevoEstado) {
-  const permitidos = TRANSICIONES_PERMITIDAS[estadoActual] || [];
+  const permitidos = TRANSICIONES_VALIDAS[estadoActual] || [];
   return permitidos.includes(nuevoEstado);
 }
 
-module.exports = { ESTADOS, esTransicionValida };
+module.exports = {
+  ESTADOS,
+  esTransicionValida,
+};

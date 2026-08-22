@@ -52,6 +52,29 @@ class OrderRepository {
     const { rows } = await db.query(query, [id]);
     return rows[0] || null;
   }
+
+  //las funciones para actualizar el estado y asignar un repartidor
+  async updateStatus(pedidoId, nuevoEstado) {
+    const query = `
+      UPDATE pedidos
+      SET estado = $1, actualizado_en = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING id, cliente_id, local_id, repartidor_id, estado, actualizado_en;
+    `;
+    const { rows } = await db.query(query, [nuevoEstado, pedidoId]);
+    return rows[0] || null;
+  }
+
+  async assignDriver(pedidoId, repartidorId) {
+    const query = `
+      UPDATE pedidos
+      SET repartidor_id = $1, actualizado_en = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING id, repartidor_id, estado;
+    `;
+    const { rows } = await db.query(query, [repartidorId, pedidoId]);
+    return rows[0] || null;
+  }
 }
 
 module.exports = new OrderRepository();

@@ -5,23 +5,42 @@ const db = require('../src/config/db');
 
 describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
   let tokenCliente;
+  let tokenAdminLocal;
   let localIdPrueba;
   let productoIdPrueba;
   let precioProductoPrueba;
 
   beforeAll(async () => {
-    // Obtener un local de prueba
+    // 1. Obtener local de prueba desde la base de datos
     const localRes = await db.query('SELECT id FROM locales LIMIT 1;');
     if (localRes.rows.length > 0) {
       localIdPrueba = localRes.rows[0].id;
     }
 
-    // Obtener un producto real cargado por las semillas
+    // 2. Obtener producto de prueba con su precio real
     const prodRes = await db.query('SELECT id, precio FROM productos LIMIT 1;');
     if (prodRes.rows.length > 0) {
       productoIdPrueba = prodRes.rows[0].id;
       precioProductoPrueba = Number(prodRes.rows[0].precio);
     }
+
+    // 3. Autenticación de Cliente de prueba
+    const resCliente = await request(app)
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'cliente@prueba.com',
+        password: 'Password123!'
+      });
+    tokenCliente = resCliente.body.token || resCliente.body.data?.token;
+
+    // 4. Autenticación de Admin de Local de prueba
+    const resAdmin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'local@prueba.com', // Ajustá si en tu semilla el email es diferente
+        password: 'Password123!'
+      });
+    tokenAdminLocal = resAdmin.body.token || resAdmin.body.data?.token;
   });
 
   afterAll(async () => {
@@ -39,7 +58,6 @@ describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
 
     expect(res.statusCode).toEqual(200);
     expect(res.body).toHaveProperty('token');
-    tokenCliente = res.body.token;
   });
 
   // 2. Protección de rutas sin Token (401)
@@ -84,13 +102,63 @@ describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
           }
         ]
       });
-    console.log('Respuesta del error 400:', res.body);
+
     expect(res.statusCode).toEqual(201);
     expect(res.body.status).toBe('success');
     expect(res.body.data).toHaveProperty('id');
 
-    // Verificar que el monto total sea exacto al (precio_unitario * cantidad)
     const montoEsperado = precioProductoPrueba * cantidadPrueba;
     expect(Number(res.body.data.montoTotal)).toEqual(montoEsperado);
+  });
+
+  // 5. Transiciones de Estado del Pedido (PATCH)
+  describe('PATCH /api/v1/pedidos/:pedidoId/estado - Transiciones de Estado', () => {
+    let pedidoIdCreado;
+
+    beforeEach(async () => {
+      // Se crea un pedido fresco antes de cada prueba de transición
+      const res = await request(app)
+        .post('/api/v1/pedidos')
+        .set('Authorization', `Bearer ${tokenCliente}`)
+        .send({
+          localId: localIdPrueba,
+          direccionEntrega: 'Av. Corrientes 5000, CABA',
+          latitud: -34.603722,
+          longitud: -58.381592,
+          items: [{ productoId: productoIdPrueba, cantidad: 1 }]
+        });
+
+      pedidoIdCreado = res.body.data.id;
+    });
+
+    it('Debería permitir al local avanzar el estado a "confirmado" (200)', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/pedidos/${pedidoIdCreado}/estado`)
+        .set('Authorization', `Bearer ${tokenAdminLocal}`)
+        .send({ estado: 'confirmado' });
+
+      expect(res.statusCode).toEqual(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.data.estado).toBe('confirmado');
+    });
+
+    it('Debería rechazar un salto de estado inválido (ej: creado -> entregado) con 400', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/pedidos/${pedidoIdCreado}/estado`)
+        .set('Authorization', `Bearer ${tokenAdminLocal}`)
+        .send({ estado: 'entregado' });
+
+      expect(res.statusCode).toEqual(400);
+      expect(res.body.status).toBe('fail');
+    });
+
+    it('Debería rechazar la actualización si el usuario tiene rol de cliente (403)', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/pedidos/${pedidoIdCreado}/estado`)
+        .set('Authorization', `Bearer ${tokenCliente}`)
+        .send({ estado: 'en_preparacion' });
+
+      expect(res.statusCode).toEqual(403);
+    });
   });
 });
