@@ -11,6 +11,7 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
   let socketRepartidor;
   let tokenCliente;
   let tokenRepartidor;
+  let tokenAdminLocal; // 1. Variable declarada correctamente
   let pedidoIdPrueba;
   const PORT = 4001;
   const SERVER_URL = `http://localhost:${PORT}`;
@@ -19,13 +20,14 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
     // 1. Levantar servidor HTTP de pruebas
     server = http.createServer(app);
     
-    // Inicializar servidor Socket.io si tu módulo expone un constructor o método de binding
-    const socketService = require('../src/sockets/socketService'); // Ajustá la ruta según tu arquitectura
-    socketService.init(server);
+    // Inicializar servidor Socket.io y vincular 'io' con Express app
+    const socketService = require('../src/sockets/socketService');
+    const ioServer = socketService.init(server);
+    app.set('io', ioServer); // 2. Vinculación clave para que orderController capture 'io'
 
     await new Promise((resolve) => server.listen(PORT, resolve));
 
-    // 2. Autenticar Cliente y Repartidor para obtener Tokens JWT
+    // 2. Autenticar Cliente, Repartidor y Admin Local para obtener Tokens JWT
     const resCliente = await request(app)
       .post('/api/v1/auth/login')
       .send({ email: 'cliente@prueba.com', password: 'Password123!' });
@@ -35,6 +37,11 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
       .post('/api/v1/auth/login')
       .send({ email: 'repartidor@prueba.com', password: 'Password123!' });
     tokenRepartidor = resRepartidor.body.token || resRepartidor.body.data?.token;
+
+    const resAdmin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'local@prueba.com', password: 'Password123!' });
+    tokenAdminLocal = resAdmin.body.token || resAdmin.body.data?.token;
 
     // 3. Obtener un Pedido existente
     const pedidoRes = await db.query('SELECT id FROM pedidos LIMIT 1;');
@@ -64,17 +71,14 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
 
   // 2. Conexión y Telemetría GPS en tiempo real
   it('Debería retransmitir la ubicación GPS del repartidor al cliente suscrito al pedido', (done) => {
-    // A. Conectar Cliente
     socketCliente = io(SERVER_URL, {
       auth: { token: tokenCliente },
       transports: ['websocket']
     });
 
     socketCliente.on('connect', () => {
-      // El cliente se une a la sala del pedido
       socketCliente.emit('unirse_pedido', { pedidoId: pedidoIdPrueba });
 
-      // B. Conectar Repartidor
       socketRepartidor = io(SERVER_URL, {
         auth: { token: tokenRepartidor },
         transports: ['websocket']
@@ -88,17 +92,43 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
           velocidad: 35.5
         };
 
-        // Escuchar el evento de actualización en el cliente
         socketCliente.on('ubicacion_actualizada', (data) => {
           expect(data.pedidoId).toBe(pedidoIdPrueba);
           expect(data.latitud).toBe(ubicacionMock.latitud);
           expect(data.longitud).toBe(ubicacionMock.longitud);
+          socketCliente.disconnect();
+          socketRepartidor.disconnect();
           done();
         });
 
-        // El repartidor transmite las coordenadas GPS
         socketRepartidor.emit('actualizar_ubicacion', ubicacionMock);
       });
+    });
+  });
+
+  // 3. Notificaciones push al cambiar estado por HTTP REST
+  it('Debería emitir el evento "estado_actualizado" cuando se cambia el estado del pedido vía REST', (done) => {
+    socketCliente = io(SERVER_URL, {
+      auth: { token: tokenCliente },
+      transports: ['websocket']
+    });
+
+    socketCliente.on('connect', () => {
+      socketCliente.emit('unirse_pedido', { pedidoId: pedidoIdPrueba });
+
+      socketCliente.on('estado_actualizado', (data) => {
+        expect(data.nuevoEstado).toBe('confirmado');
+        socketCliente.disconnect();
+        done();
+      });
+
+      request(app)
+        .patch(`/api/v1/pedidos/${pedidoIdPrueba}/estado`)
+        .set('Authorization', `Bearer ${tokenAdminLocal}`)
+        .send({ estado: 'confirmado' })
+        .end((err) => {
+          if (err) done(err);
+        });
     });
   });
 });

@@ -10,13 +10,18 @@ const productRoutes = require('./routes/productRoutes');
 
 const app = express();
 
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+
 app.use(cors());
 app.use(express.json());
+
 
 // Rutas
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/pedidos', orderRoutes);
 app.use('/api/v1/locales/:localId/productos', productRoutes);
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 
 // Manejo de 404
