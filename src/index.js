@@ -1,13 +1,22 @@
 // src/index.js
 
 // src/index.js
+const http = require('http');
 const app = require('./app');
+const socketService = require('./sockets/socketService');
 require('dotenv').config();
+
+const server = http.createServer(app);
+socketService.init(server);
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`🚀 Backend escuchando en puerto ${PORT}`);
+});
+
+server.listen(PORT, () => {
+  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
 });
 /*const express = require('express');
 const cors = require('cors');
