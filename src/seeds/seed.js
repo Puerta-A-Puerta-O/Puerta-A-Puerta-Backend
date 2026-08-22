@@ -9,9 +9,11 @@ async function seed() {
     await client.query('BEGIN');
 
     // 1. Limpiar tablas en orden
-    await client.query('TRUNCATE productos, categorias, pedidos, pedido_historial_estados, locales, usuarios RESTART IDENTITY CASCADE;');
+    await client.query(
+      'TRUNCATE productos, categorias, pedido_items, pedido_ubicaciones, pedido_historial_estados, pedidos, usuario_locales, locales, usuarios RESTART IDENTITY CASCADE;'
+    );
 
-    // 2. Crear Usuarios (Cliente, Admin de Local y Repartidor)
+    // 2. Crear Usuarios (Cliente, Admin Local, Repartidor)
     const password = await bcrypt.hash('Password123!', 10);
     const insertUsersQuery = `
       INSERT INTO usuarios (nombre, email, password, telefono, rol)
@@ -21,7 +23,8 @@ async function seed() {
         ('Repartidor Prueba', 'repartidor@prueba.com', $1, '+541187654321', 'repartidor')
       RETURNING id, rol;
     `;
-    await client.query(insertUsersQuery, [password]);
+    const usersRes = await client.query(insertUsersQuery, [password]);
+    const adminLocal = usersRes.rows.find(u => u.rol === 'admin_local');
 
     // 3. Crear Local
     const insertLocalQuery = `
@@ -32,7 +35,13 @@ async function seed() {
     const localRes = await client.query(insertLocalQuery);
     const localId = localRes.rows[0].id;
 
-    // 4. Crear Categoría y Producto
+    // 4. Vincular Administrador con el Local (Tabla Intermedia)
+    await client.query(
+      `INSERT INTO usuario_locales (usuario_id, local_id) VALUES ($1, $2);`,
+      [adminLocal.id, localId]
+    );
+
+    // 5. Categoría y Producto
     const catRes = await client.query(
       `INSERT INTO categorias (local_id, nombre) VALUES ($1, 'Pizzas') RETURNING id;`,
       [localId]

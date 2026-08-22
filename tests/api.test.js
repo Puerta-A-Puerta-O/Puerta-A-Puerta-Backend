@@ -131,11 +131,15 @@ describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
       pedidoIdCreado = res.body.data.id;
     });
 
+    // tests/api.test.js (alrededor de la línea 135)
     it('Debería permitir al local avanzar el estado a "confirmado" (200)', async () => {
       const res = await request(app)
         .patch(`/api/v1/pedidos/${pedidoIdCreado}/estado`)
         .set('Authorization', `Bearer ${tokenAdminLocal}`)
         .send({ estado: 'confirmado' });
+
+      // Agregá esta línea para ver la razón exacta del 403:
+      if (res.statusCode === 403) console.log('Detalle 403:', res.body);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.status).toBe('success');

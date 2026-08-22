@@ -11,9 +11,10 @@ router.use(authenticateJWT);
 
 router.post('/', validateCreateOrder, validateRequest, orderController.createOrder);
 
+
 router.patch(
   '/:pedidoId/estado',
-  authorizeRoles('admin', 'local', 'repartidor'),
+  authorizeRoles('admin', 'admin_local', 'local', 'repartidor'),
   validateChangeStatus,
   validateRequest,
   orderController.changeStatus

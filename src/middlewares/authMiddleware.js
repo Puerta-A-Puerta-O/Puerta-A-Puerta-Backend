@@ -22,7 +22,9 @@ const authenticateJWT = (req, res, next) => {
 
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user?.role)) {
+    const userRole = req.user?.rol || req.user?.role;
+
+    if (!roles.includes(userRole)) {
       return res.status(403).json({ status: 'fail', message: 'No tienes permisos suficientes' });
     }
     next();

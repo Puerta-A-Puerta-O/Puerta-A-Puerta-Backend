@@ -1,15 +1,14 @@
 -- ==========================================
--- ESTRUCTURA INICIAL BASE DE DATOS: puertaApuerta_db
+-- ESTRUCTURA OPTIMIZADA Y ESCALABLE
 -- ==========================================
 
--- 1. Habilitar extensión geoespacial PostGIS
 CREATE EXTENSION IF NOT EXISTS postgis;
 
--- 2. Enumeraciones de Tipos de Datos (Estados y Roles)
+-- Enumeraciones
 CREATE TYPE rol_usuario AS ENUM ('cliente', 'repartidor', 'admin_local', 'superadmin');
 CREATE TYPE estado_pedido AS ENUM ('creado', 'confirmado', 'en_preparacion', 'listo_para_retirar', 'en_camino', 'entregado', 'cancelado');
 
--- 3. Tabla de Usuarios (Clientes, Repartidores, Administradores)
+-- 1. Tabla de Usuarios
 CREATE TABLE usuarios (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre VARCHAR(100) NOT NULL,
@@ -20,54 +19,25 @@ CREATE TABLE usuarios (
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Tabla de Locales (Restaurantes, Pizzerías, Locales comerciales)
+-- 2. Tabla de Locales
 CREATE TABLE locales (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre VARCHAR(120) NOT NULL,
     direccion TEXT NOT NULL,
-    ubicacion GEOGRAPHY(Point, 4326) NOT NULL, -- Coordenadas (longitud, latitud)
+    ubicacion GEOGRAPHY(Point, 4326) NOT NULL,
     activo BOOLEAN DEFAULT true,
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Tabla Principal de Pedidos
-CREATE TABLE pedidos (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    cliente_id UUID NOT NULL REFERENCES usuarios(id),
-    local_id UUID NOT NULL REFERENCES locales(id),
-    repartidor_id UUID REFERENCES usuarios(id),
-    estado estado_pedido NOT NULL DEFAULT 'creado',
-    direccion_entrega TEXT NOT NULL,
-    ubicacion_entrega GEOGRAPHY(Point, 4326) NOT NULL, -- Coordenadas de la casa del cliente
-    monto_total NUMERIC(10, 2) NOT NULL,
+-- 3. Tabla Intermedia: Pertenencia de Usuarios/Administradores a Locales (Escalabilidad multi-local)
+CREATE TABLE usuario_locales (
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    local_id UUID NOT NULL REFERENCES locales(id) ON DELETE CASCADE,
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    actualizado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    PRIMARY KEY (usuario_id, local_id)
 );
 
--- 6. Historial de Cambios de Estado del Pedido
-CREATE TABLE pedido_historial_estados (
-    id BIGSERIAL PRIMARY KEY,
-    pedido_id UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-    estado estado_pedido NOT NULL,
-    cambiado_por UUID REFERENCES usuarios(id),
-    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 7. Telemetría GPS en Tiempo Real (Rastro del Repartidor)
-CREATE TABLE pedido_ubicaciones (
-    id BIGSERIAL PRIMARY KEY,
-    pedido_id UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-    repartidor_id UUID NOT NULL REFERENCES usuarios(id),
-    ubicacion GEOGRAPHY(Point, 4326) NOT NULL, -- Posición actual del repartidor
-    velocidad_kms NUMERIC(5, 2),
-    registrado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- ==========================================
--- MÓDULO DE PRODUCTOS Y MENÚ
--- ==========================================
-
--- 8. Tabla de Categorías de Productos
+-- 4. Categorías
 CREATE TABLE categorias (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     local_id UUID NOT NULL REFERENCES locales(id) ON DELETE CASCADE,
@@ -76,47 +46,67 @@ CREATE TABLE categorias (
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 9. Tabla de Productos
+-- 5. Productos
 CREATE TABLE productos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     local_id UUID NOT NULL REFERENCES locales(id) ON DELETE CASCADE,
     categoria_id UUID REFERENCES categorias(id) ON DELETE SET NULL,
     nombre VARCHAR(120) NOT NULL,
     descripcion TEXT,
-    precio NUMERIC(10, 2) NOT NULL,
+    precio NUMERIC(10, 2) NOT NULL CHECK (precio >= 0),
     disponible BOOLEAN DEFAULT true,
     imagen_url TEXT,
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices de búsqueda para el catálogo
-CREATE INDEX idx_categorias_local ON categorias(local_id);
-CREATE INDEX idx_productos_local ON productos(local_id);
-CREATE INDEX idx_productos_categoria ON productos(categoria_id);
+-- 6. Pedidos
+CREATE TABLE pedidos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cliente_id UUID NOT NULL REFERENCES usuarios(id),
+    local_id UUID NOT NULL REFERENCES locales(id),
+    repartidor_id UUID REFERENCES usuarios(id),
+    estado estado_pedido NOT NULL DEFAULT 'creado',
+    direccion_entrega TEXT NOT NULL,
+    ubicacion_entrega GEOGRAPHY(Point, 4326) NOT NULL,
+    monto_total NUMERIC(10, 2) NOT NULL CHECK (monto_total >= 0),
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
--- 10. Tabla de Detalle/Ítems del Pedido
+-- 7. Historial de Estados
+CREATE TABLE pedido_historial_estados (
+    id BIGSERIAL PRIMARY KEY,
+    pedido_id UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+    estado estado_pedido NOT NULL,
+    cambiado_por UUID REFERENCES usuarios(id),
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Ubicaciones / Telemetría GPS
+CREATE TABLE pedido_ubicaciones (
+    id BIGSERIAL PRIMARY KEY,
+    pedido_id UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+    repartidor_id UUID NOT NULL REFERENCES usuarios(id),
+    ubicacion GEOGRAPHY(Point, 4326) NOT NULL,
+    velocidad_kms NUMERIC(5, 2),
+    registrado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9. Ítems del Pedido (Congela precios al momento de la compra)
 CREATE TABLE pedido_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     pedido_id UUID NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
     producto_id UUID NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
     cantidad INT NOT NULL CHECK (cantidad > 0),
-    precio_unitario NUMERIC(10, 2) NOT NULL,
-    subtotal NUMERIC(10, 2) NOT NULL,
+    precio_unitario NUMERIC(10, 2) NOT NULL CHECK (precio_unitario >= 0),
+    subtotal NUMERIC(10, 2) NOT NULL CHECK (subtotal >= 0),
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_pedido_items_pedido ON pedido_items(pedido_id);
-
--- ==========================================
--- ÍNDICES DE RENDIMIENTO Y GEOESPACIALES (GIST)
--- ==========================================
-
--- Búsqueda por proximidad rápida en mapa
+-- Indices de Rendimiento
+CREATE INDEX idx_usuario_locales_local ON usuario_locales(local_id);
 CREATE INDEX idx_locales_ubicacion ON locales USING GIST (ubicacion);
 CREATE INDEX idx_pedidos_entrega ON pedidos USING GIST (ubicacion_entrega);
 CREATE INDEX idx_pedido_ubicaciones_geo ON pedido_ubicaciones USING GIST (ubicacion);
-
--- Consultas frecuentes en la App
 CREATE INDEX idx_pedidos_cliente ON pedidos(cliente_id);
-CREATE INDEX idx_pedidos_repartidor_estado ON pedidos(repartidor_id, estado);
-CREATE INDEX idx_ubicaciones_pedido_tiempo ON pedido_ubicaciones(pedido_id, registrado_en DESC);
+CREATE INDEX idx_pedidos_local_estado ON pedidos(local_id, estado);
