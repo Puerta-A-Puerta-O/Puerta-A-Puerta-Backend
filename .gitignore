@@ -78,3 +78,6 @@ postgres_data/
 pgdata/
 *.sqlite
 *.db
+
+logs/
+*.log
