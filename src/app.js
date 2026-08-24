@@ -5,11 +5,14 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
+const errorHandler = require('./middlewares/errorHandler'); // Importar Middleware
+const logger = require('./config/logger'); // Importar Logger
 
 // Rutas
 const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const productRoutes = require('./routes/productRoutes'); // Importamos productRoutes
+
 
 const app = express();
 
@@ -49,6 +52,14 @@ const authLimiter = rateLimit({
 app.use(cors());
 app.use(express.json());
 
+// Logging de peticiones HTTP en consola/archivos
+app.use((req, res, next) => {
+  if (!isTestEnv) {
+    logger.info(`HTTP ${req.method} ${req.url}`);
+  }
+  next();
+});
+
 // Documentación Swagger
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
@@ -56,5 +67,8 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/v1/auth', authLimiter, authRoutes);
 app.use('/api/v1/pedidos', orderRoutes);
 app.use('/api/v1/locales/:localId/productos', productRoutes); // Mapeo anidado directo
+
+// Middleware de manejo global de errores (DEBE ir siempre al final de las rutas)
+app.use(errorHandler);
 
 module.exports = app;
