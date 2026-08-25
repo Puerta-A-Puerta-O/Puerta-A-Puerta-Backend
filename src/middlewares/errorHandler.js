@@ -3,7 +3,8 @@ const logger = require('../config/logger');
 
 module.exports = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
-  err.status = err.status || 'error';
+  // Si el statusCode es 4xx debe ser 'fail', si es 5xx es 'error'
+  err.status = err.status || (err.statusCode >= 400 && err.statusCode < 500 ? 'fail' : 'error');
 
   // 1. Logging Estructurado con Winston
   logger.error(`${err.statusCode} - ${err.message} - [${req.method} ${req.url}] - IP: ${req.ip}`);

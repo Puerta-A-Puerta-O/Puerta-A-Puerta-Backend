@@ -1,13 +1,15 @@
 // src/services/orderServices.js
 const orderRepository = require('../repositories/orderRepository');
-const productRepository = require('../repositories/productRepository'); // <- Inyectamos el repositorio de productos
+const productRepository = require('../repositories/productRepository');
 const { esTransicionValida, ESTADOS } = require('../utils/orderStateMachine');
 
 class OrderService {
   async createOrder({ clienteId, localId, direccionEntrega, latitud, longitud, items }) {
     // 1. Validar campos obligatorios
     if (!latitud || !longitud || !direccionEntrega || !items || !Array.isArray(items) || items.length === 0) {
-      throw new Error('Los datos del domicilio y al menos un ítem son requeridos');
+      const error = new Error('Los datos del domicilio y al menos un ítem son requeridos');
+      error.statusCode = 400;
+      throw error;
     }
 
     // 2. Recalcular el monto total consultando los precios reales en la BD
@@ -18,7 +20,9 @@ class OrderService {
       const producto = await productRepository.findById(item.productoId);
       
       if (!producto || !producto.disponible) {
-        throw new Error(`El producto con ID ${item.productoId} no está disponible o no existe`);
+        const error = new Error(`El producto con ID ${item.productoId} no está disponible o no existe`);
+        error.statusCode = 404;
+        throw error;
       }
 
       const subtotal = Number(producto.precio) * item.cantidad;
@@ -46,24 +50,42 @@ class OrderService {
 
   async assignDriver(pedidoId, repartidorId) {
     const pedido = await orderRepository.findById(pedidoId);
-    if (!pedido) throw new Error('Pedido no encontrado');
+    if (!pedido) {
+      const error = new Error('Pedido no encontrado');
+      error.statusCode = 404;
+      throw error;
+    }
 
     return await orderRepository.assignDriver(pedidoId, repartidorId);
   }
 
-  async changeOrderStatus(pedidoId, nuevoEstado, usuarioId) {
+  async changeOrderStatus({ pedidoId, estado: nuevoEstado, repartidorId, usuarioId }) {
     const pedido = await orderRepository.findById(pedidoId);
-    if (!pedido) throw new Error('Pedido no encontrado');
+    if (!pedido) {
+      const error = new Error('Pedido no encontrado');
+      error.statusCode = 404;
+      throw error;
+    }
 
+    // Validar máquina de estados
     if (!esTransicionValida(pedido.estado, nuevoEstado)) {
-      throw new Error(
-        `Transición no permitida de '${pedido.estado}' a '${nuevoEstado}'`
-      );
+      const error = new Error(`Transición no permitida de '${pedido.estado}' a '${nuevoEstado}'`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Asignar repartidor explícitamente si vino en el body
+    let targetRepartidorId = pedido.repartidor_id;
+    if (repartidorId) {
+      await orderRepository.assignDriver(pedidoId, repartidorId);
+      targetRepartidorId = repartidorId;
     }
 
     // Regla de negocio: No se puede poner 'en_camino' si no hay repartidor asignado
-    if (nuevoEstado === ESTADOS.EN_CAMINO && !pedido.repartidor_id) {
-      throw new Error('No se puede pasar a en_camino sin un repartidor asignado');
+    if (nuevoEstado === ESTADOS.EN_CAMINO && !targetRepartidorId) {
+      const error = new Error('No se puede pasar a en_camino sin un repartidor asignado');
+      error.statusCode = 400;
+      throw error;
     }
 
     return await orderRepository.updateStatus(pedidoId, nuevoEstado, usuarioId);

@@ -11,7 +11,7 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
   let socketRepartidor;
   let tokenCliente;
   let tokenRepartidor;
-  let tokenAdminLocal; // 1. Variable declarada correctamente
+  let tokenAdminLocal;
   let pedidoIdPrueba;
   const PORT = 4001;
   const SERVER_URL = `http://localhost:${PORT}`;
@@ -23,11 +23,11 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
     // Inicializar servidor Socket.io y vincular 'io' con Express app
     const socketService = require('../src/sockets/socketService');
     const ioServer = socketService.init(server);
-    app.set('io', ioServer); // 2. Vinculación clave para que orderController capture 'io'
+    app.set('io', ioServer);
 
     await new Promise((resolve) => server.listen(PORT, resolve));
 
-    // 2. Autenticar Cliente, Repartidor y Admin Local para obtener Tokens JWT
+    // 2. Autenticar usuarios para obtener Tokens JWT
     const resCliente = await request(app)
       .post('/api/v1/auth/login')
       .send({ email: 'cliente@prueba.com', password: 'Password123!' });
@@ -43,7 +43,7 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
       .send({ email: 'local@prueba.com', password: 'Password123!' });
     tokenAdminLocal = resAdmin.body.token || resAdmin.body.data?.token;
 
-    // 3. Obtener un Pedido existente
+    // 3. Obtener un Pedido existente para usar en las pruebas
     const pedidoRes = await db.query('SELECT id FROM pedidos LIMIT 1;');
     pedidoIdPrueba = pedidoRes.rows[0].id;
   });
@@ -108,27 +108,44 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
 
   // 3. Notificaciones push al cambiar estado por HTTP REST
   it('Debería emitir el evento "estado_actualizado" cuando se cambia el estado del pedido vía REST', (done) => {
-    socketCliente = io(SERVER_URL, {
-      auth: { token: tokenCliente },
-      transports: ['websocket']
-    });
+    // 1. Reconectar socket del cliente si fuera necesario
+    if (!socketCliente || !socketCliente.connected) {
+      socketCliente = io(SERVER_URL, {
+        auth: { token: tokenCliente },
+        transports: ['websocket']
+      });
+    }
 
-    socketCliente.on('connect', () => {
+    const ejecutarPrueba = () => {
+      // 2. Unirse a la sala del pedido para escuchar los eventos emitidos a io.to(`pedido_${pedidoId}`)
       socketCliente.emit('unirse_pedido', { pedidoId: pedidoIdPrueba });
 
+      // 3. Escuchar el evento antes de lanzar el PATCH HTTP
       socketCliente.on('estado_actualizado', (data) => {
-        expect(data.nuevoEstado).toBe('confirmado');
-        socketCliente.disconnect();
-        done();
+        try {
+          expect(data).toHaveProperty('pedidoId');
+          expect(data.nuevoEstado).toBe('confirmado');
+          done();
+        } catch (error) {
+          done(error);
+        }
       });
 
+      // 4. Disparar transición válida: 'creado' -> 'confirmado'
       request(app)
         .patch(`/api/v1/pedidos/${pedidoIdPrueba}/estado`)
         .set('Authorization', `Bearer ${tokenAdminLocal}`)
         .send({ estado: 'confirmado' })
-        .end((err) => {
-          if (err) done(err);
+        .end((err, res) => {
+          if (err) return done(err);
+          expect(res.statusCode).toBe(200);
         });
-    });
+    };
+
+    if (socketCliente.connected) {
+      ejecutarPrueba();
+    } else {
+      socketCliente.on('connect', ejecutarPrueba);
+    }
   });
 });
