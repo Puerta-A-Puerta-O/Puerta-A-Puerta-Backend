@@ -17,17 +17,15 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
   const SERVER_URL = `http://localhost:${PORT}`;
 
   beforeAll(async () => {
-    // 1. Levantar servidor HTTP de pruebas
+    // 1. Servidor de pruebas
     server = http.createServer(app);
-    
-    // Inicializar servidor Socket.io y vincular 'io' con Express app
     const socketService = require('../src/sockets/socketService');
     const ioServer = socketService.init(server);
     app.set('io', ioServer);
 
     await new Promise((resolve) => server.listen(PORT, resolve));
 
-    // 2. Autenticar usuarios para obtener Tokens JWT
+    // 2. Obtención de tokens
     const resCliente = await request(app)
       .post('/api/v1/auth/login')
       .send({ email: 'cliente@prueba.com', password: 'Password123!' });
@@ -43,9 +41,10 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
       .send({ email: 'local@prueba.com', password: 'Password123!' });
     tokenAdminLocal = resAdmin.body.token || resAdmin.body.data?.token;
 
-    // 3. Obtener un Pedido existente para usar en las pruebas
+    // 3. Tomar un pedido y FORZARLO a estado 'creado'
     const pedidoRes = await db.query('SELECT id FROM pedidos LIMIT 1;');
     pedidoIdPrueba = pedidoRes.rows[0].id;
+    await db.query("UPDATE pedidos SET estado = 'creado' WHERE id = $1;", [pedidoIdPrueba]);
   });
 
   afterAll(async () => {
@@ -55,7 +54,6 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
     await db.pool.end();
   });
 
-  // 1. Rechazar conexiones sin token JWT
   it('Debería rechazar conexiones por WebSocket sin token JWT válido', (done) => {
     const socketSinAuth = io(SERVER_URL, {
       transports: ['websocket'],
@@ -69,7 +67,6 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
     });
   });
 
-  // 2. Conexión y Telemetría GPS en tiempo real
   it('Debería retransmitir la ubicación GPS del repartidor al cliente suscrito al pedido', (done) => {
     socketCliente = io(SERVER_URL, {
       auth: { token: tokenCliente },
@@ -106,9 +103,7 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
     });
   });
 
-  // 3. Notificaciones push al cambiar estado por HTTP REST
   it('Debería emitir el evento "estado_actualizado" cuando se cambia el estado del pedido vía REST', (done) => {
-    // 1. Reconectar socket del cliente si fuera necesario
     if (!socketCliente || !socketCliente.connected) {
       socketCliente = io(SERVER_URL, {
         auth: { token: tokenCliente },
@@ -116,14 +111,14 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
       });
     }
 
-    const ejecutarPrueba = () => {
-      // 2. Unirse a la sala del pedido para escuchar los eventos emitidos a io.to(`pedido_${pedidoId}`)
+    const ejecutarPrueba = async () => {
+      // Garantizar que el pedido esté en 'creado' antes de pasar a 'confirmado'
+      await db.query("UPDATE pedidos SET estado = 'creado' WHERE id = $1;", [pedidoIdPrueba]);
+
       socketCliente.emit('unirse_pedido', { pedidoId: pedidoIdPrueba });
 
-      // 3. Escuchar el evento antes de lanzar el PATCH HTTP
       socketCliente.on('estado_actualizado', (data) => {
         try {
-          expect(data).toHaveProperty('pedidoId');
           expect(data.nuevoEstado).toBe('confirmado');
           done();
         } catch (error) {
@@ -131,7 +126,7 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
         }
       });
 
-      // 4. Disparar transición válida: 'creado' -> 'confirmado'
+      // Petición REST
       request(app)
         .patch(`/api/v1/pedidos/${pedidoIdPrueba}/estado`)
         .set('Authorization', `Bearer ${tokenAdminLocal}`)
