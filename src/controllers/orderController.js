@@ -63,6 +63,26 @@ class OrderController {
       next(error); // Delegar al errorHandler centralizado y Winston
     }
   }
+
+  // En src/controllers/orderController.js
+
+  async getTrackingHistory(req, res, next) {
+    try {
+      const { id } = req.params;
+      const historial = await geoRepository.getOrderRouteHistory(id);
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          total_puntos: historial.length,
+          ruta: historial
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
 }
 
 module.exports = new OrderController(); //[cite: 3]

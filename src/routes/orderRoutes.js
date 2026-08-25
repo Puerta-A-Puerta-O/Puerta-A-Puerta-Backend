@@ -3,13 +3,14 @@ const express = require('express');
 const router = express.Router();
 const orderController = require('../controllers/orderController');
 const { validateCreateOrder, validateChangeStatus } = require('../validators/orderValidator');
+const { checkDeliveryCoverage } = require('../middlewares/coverageMiddleware'); // Validación espacial PostGIS
 const validateRequest = require('../middlewares/validateRequest');
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
 
 // Aplicamos el middleware
 router.use(authenticateJWT);
 
-router.post('/', validateCreateOrder, validateRequest, orderController.createOrder);
+router.post('/', validateCreateOrder, checkDeliveryCoverage, validateRequest, orderController.createOrder);
 
 /**
  * @swagger

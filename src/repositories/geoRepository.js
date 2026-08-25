@@ -90,6 +90,72 @@ class GeoRepository {
     const result = await db.query(query, [localId]);
     return result.rows[0] || null;
   }
+
+  /**
+     * Verifica si un punto (lat, lng) está dentro del polígono de cobertura del local
+     */
+    async isLocationWithinCoverage(localId, latitud, longitud) {
+    const query = `
+        SELECT 
+        CASE 
+            WHEN poligono_cobertura IS NULL THEN true -- Si el local no definió polígono, asume cobertura total
+            ELSE ST_Contains(
+            poligono_cobertura, 
+            ST_SetSRID(ST_MakePoint($1, $2), 4326)
+            )
+        END AS en_cobertura
+        FROM locales
+        WHERE id = $3;
+    `;
+    const result = await db.query(query, [longitud, latitud, localId]);
+    return result.rows[0]?.en_cobertura ?? false;
+    }
+
+    // En src/repositories/geoRepository.js
+
+    /**
+     * Guarda un punto GPS en el historial de ruta del pedido
+     */
+    async saveDeliveryPoint(pedidoId, repartidorId, latitud, longitud, velocidadKms = 0) {
+    const query = `
+        INSERT INTO pedido_ubicaciones (pedido_id, repartidor_id, ubicacion, velocidad_kms)
+        VALUES (
+        $1, 
+        $2, 
+        ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, 
+        $5
+        )
+        RETURNING id, registrado_en;
+    `;
+    const result = await db.query(query, [
+        pedidoId, 
+        repartidorId, 
+        longitud, 
+        latitud, 
+        velocidadKms
+    ]);
+    return result.rows[0];
+    }
+
+    /**
+     * Obtiene la ruta completa realizada en un pedido en formato GeoJSON / Array de coordenadas
+     */
+    async getOrderRouteHistory(pedidoId) {
+    const query = `
+        SELECT 
+        id,
+        repartidor_id,
+        ST_Y(ubicacion::geometry) AS latitud,
+        ST_X(ubicacion::geometry) AS longitud,
+        velocidad_kms,
+        registrado_en
+        FROM pedido_ubicaciones
+        WHERE pedido_id = $1
+        ORDER BY registrado_en ASC;
+    `;
+    const result = await db.query(query, [pedidoId]);
+    return result.rows;
+    }
 }
 
 
