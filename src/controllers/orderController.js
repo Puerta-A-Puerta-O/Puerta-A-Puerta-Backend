@@ -1,11 +1,11 @@
-// src/controllers/orderController.js
-const orderService = require('../services/orderServices'); //[cite: 3]
+const orderService = require('../services/orderServices'); 
+const geoRepository = require('../repositories/geoRepository');
 
 class OrderController {
   async createOrder(req, res, next) {
     try {
-      const clienteId = req.user.id; //[cite: 3]
-      const { localId, direccionEntrega, latitud, longitud, items } = req.body; //[cite: 3]
+      const clienteId = req.user.id;
+      const { localId, direccionEntrega, latitud, longitud, items } = req.body;
 
       const nuevoPedido = await orderService.createOrder({
         clienteId,
@@ -14,28 +14,27 @@ class OrderController {
         latitud,
         longitud,
         items,
-      }); //[cite: 3]
+      });
 
-      // Emisión Socket.io al canal del local
-      const io = req.app.get('io'); //[cite: 3]
+      const io = req.app.get('io');
       if (io) {
-        io.to(`local_${localId}`).emit('nuevo_pedido', nuevoPedido); //[cite: 3]
+        io.to(`local_${localId}`).emit('nuevo_pedido', nuevoPedido);
       }
 
       res.status(201).json({
         status: 'success',
         data: nuevoPedido,
-      }); //[cite: 3]
+      });
     } catch (error) {
-      next(error); // Delegar al errorHandler centralizado y Winston
+      next(error);
     }
   }
 
   async changeStatus(req, res, next) {
     try {
-      const { pedidoId } = req.params; //[cite: 3]
+      const { pedidoId } = req.params;
       const { estado, repartidorId } = req.body;
-      const usuarioId = req.user.id; //[cite: 3]
+      const usuarioId = req.user.id;
 
       const pedidoActualizado = await orderService.changeOrderStatus({
         pedidoId,
@@ -44,37 +43,35 @@ class OrderController {
         usuarioId
       });
 
-      // Emisión Socket.io a la sala del pedido
-      const io = req.app.get('io'); //[cite: 3]
+      const io = req.app.get('io');
       if (io) {
-        io.to(`pedido_${pedidoId}`).emit('estado_actualizado', { //[cite: 3]
-          pedidoId: pedidoActualizado.id || pedidoId, //[cite: 3]
-          nuevoEstado: estado, //[cite: 3]
+        io.to(`pedido_${pedidoId}`).emit('estado_actualizado', {
+          pedidoId: pedidoActualizado.id || pedidoId,
+          nuevoEstado: estado,
           repartidorId: pedidoActualizado.repartidorId || repartidorId || null,
-          actualizadoEn: new Date(), //[cite: 3]
+          actualizadoEn: new Date(),
         });
       }
 
       res.status(200).json({
         status: 'success',
         data: pedidoActualizado,
-      }); //[cite: 3]
+      });
     } catch (error) {
-      next(error); // Delegar al errorHandler centralizado y Winston
+      next(error);
     }
   }
 
-  // En src/controllers/orderController.js
-
   async getTrackingHistory(req, res, next) {
     try {
-      const { id } = req.params;
-      const historial = await geoRepository.getOrderRouteHistory(id);
+      const { pedidoId } = req.params; // Sincronizado con el parámetro de la ruta
+      const historial = await geoRepository.getOrderRouteHistory(pedidoId);
 
       res.status(200).json({
         status: 'success',
         data: {
-          total_puntos: historial.length,
+          pedidoId,
+          totalPuntos: historial.length,
           ruta: historial
         }
       });
@@ -82,7 +79,6 @@ class OrderController {
       next(error);
     }
   }
-
 }
 
-module.exports = new OrderController(); //[cite: 3]
+module.exports = new OrderController();

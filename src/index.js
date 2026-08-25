@@ -2,7 +2,7 @@
 const http = require('http');
 const app = require('./app');
 const socketService = require('./sockets/socketService');
-const initAssignmentJob = require('./src/jobs/assignmentJob');
+const initAssignmentJob = require('./jobs/assignmentJob');
 require('dotenv').config();
 
 const server = http.createServer(app);

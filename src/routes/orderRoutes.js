@@ -1,16 +1,46 @@
-// src/routes/orderRoutes.js
 const express = require('express');
 const router = express.Router();
 const orderController = require('../controllers/orderController');
 const { validateCreateOrder, validateChangeStatus } = require('../validators/orderValidator');
-const { checkDeliveryCoverage } = require('../middlewares/coverageMiddleware'); // Validación espacial PostGIS
+const { checkDeliveryCoverage } = require('../middlewares/coverageMiddleware');
 const validateRequest = require('../middlewares/validateRequest');
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
 
-// Aplicamos el middleware
+// Middleware global para proteger todas las rutas de pedidos
 router.use(authenticateJWT);
 
-router.post('/', validateCreateOrder, checkDeliveryCoverage, validateRequest, orderController.createOrder);
+/**
+ * @swagger
+ * /pedidos/{pedidoId}/tracking:
+ *   get:
+ *     summary: Obtiene el historial de ubicaciones GPS de un pedido
+ *     tags: [Pedidos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: pedidoId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Historial devuelto exitosamente
+ *       401:
+ *         description: No autorizado
+ */
+router.get(
+  '/:pedidoId/tracking',
+  orderController.getTrackingHistory.bind(orderController)
+);
+
+router.post(
+  '/', 
+  validateCreateOrder, 
+  checkDeliveryCoverage, 
+  validateRequest, 
+  orderController.createOrder.bind(orderController)
+);
 
 /**
  * @swagger
@@ -49,7 +79,7 @@ router.patch(
   authorizeRoles('admin', 'admin_local', 'local', 'repartidor'),
   validateChangeStatus,
   validateRequest,
-  orderController.changeStatus
+  orderController.changeStatus.bind(orderController)
 );
 
 module.exports = router;
