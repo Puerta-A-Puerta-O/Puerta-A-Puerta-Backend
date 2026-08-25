@@ -5,28 +5,27 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'API Puerta a Puerta',
+      title: 'Puerta a Puerta API',
       version: '1.0.0',
-      description: 'Documentación de la API REST para la plataforma de pedidos y delivery en tiempo real.',
+      description: 'Documentación de la API Backend con soporte PostGIS para Geofencing y Tracking GPS en tiempo real.'
     },
     servers: [
       {
-        url: 'http://localhost:3000/api/v1',
-        description: 'Servidor de Desarrollo',
-      },
+        url: 'http://localhost:4000/api/v1',
+        description: 'Servidor Local de Desarrollo'
+      }
     ],
     components: {
       securitySchemes: {
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'JWT',
-        },
-      },
-    },
-    security: [{ bearerAuth: [] }],
+          bearerFormat: 'JWT'
+        }
+      }
+    }
   },
-  apis: ['./src/routes/*.js'],
+  apis: ['./src/routes/*.js']
 };
 
 const swaggerSpec = swaggerJSDoc(options);
