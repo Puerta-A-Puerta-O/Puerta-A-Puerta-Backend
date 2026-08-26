@@ -4,7 +4,7 @@ const productRepository = require('../repositories/productRepository');
 const { esTransicionValida, ESTADOS } = require('../utils/orderStateMachine');
 
 class OrderService {
-  async createOrder({ clienteId, localId, direccionEntrega, latitud, longitud, items }) {
+  async createOrder({ clienteId, localId, direccionEntrega, latitud, longitud, notas, items }) {
     // 1. Validar campos obligatorios
     if (!latitud || !longitud || !direccionEntrega || !items || !Array.isArray(items) || items.length === 0) {
       const error = new Error('Los datos del domicilio y al menos un ítem son requeridos');
@@ -36,13 +36,14 @@ class OrderService {
       });
     }
 
-    // 3. Crear la orden con el monto seguro recalculado en backend
-    return await orderRepository.create({
+    // 3. Crear la orden invocando la función correspondiente en orderRepository
+    return await orderRepository.createOrder({
       clienteId,
       localId,
       direccionEntrega,
       latitud,
       longitud,
+      notas,
       montoTotal: montoTotalCalculado,
       items: itemsValidados
     });
@@ -56,7 +57,8 @@ class OrderService {
       throw error;
     }
 
-    return await orderRepository.assignDriver(pedidoId, repartidorId);
+    // Actualiza el repartidor asignado llamando a updateStatus con su ID opcional
+    return await orderRepository.updateStatus(pedidoId, pedido.estado, repartidorId);
   }
 
   async changeOrderStatus({ pedidoId, estado: nuevoEstado, repartidorId, usuarioId }) {
@@ -74,12 +76,8 @@ class OrderService {
       throw error;
     }
 
-    // Asignar repartidor explícitamente si vino en el body
-    let targetRepartidorId = pedido.repartidor_id;
-    if (repartidorId) {
-      await orderRepository.assignDriver(pedidoId, repartidorId);
-      targetRepartidorId = repartidorId;
-    }
+    // Determinar repartidor
+    const targetRepartidorId = repartidorId || pedido.repartidor_id;
 
     // Regla de negocio: No se puede poner 'en_camino' si no hay repartidor asignado
     if (nuevoEstado === ESTADOS.EN_CAMINO && !targetRepartidorId) {
@@ -88,7 +86,7 @@ class OrderService {
       throw error;
     }
 
-    return await orderRepository.updateStatus(pedidoId, nuevoEstado, usuarioId);
+    return await orderRepository.updateStatus(pedidoId, nuevoEstado, targetRepartidorId, usuarioId);
   }
 }
 
