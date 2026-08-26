@@ -13,6 +13,7 @@ const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const localRoutes = require('./routes/localRoutes');
 const productRoutes = require('./routes/productRoutes');
+const geoRoutes = require('./routes/geoRoutes');
 
 const app = express();
 
@@ -70,6 +71,7 @@ localRoutes.use('/:localId/productos', productRoutes);
 app.use('/api/v1/auth', authLimiter, authRoutes);
 app.use('/api/v1/pedidos', orderRoutes);
 app.use('/api/v1/locales', localRoutes);
+app.use('/api/v1/telemetria', geoRoutes);
 
 // Middleware de manejo global de errores (DEBE ir siempre al final de las rutas)
 app.use(errorHandler);
