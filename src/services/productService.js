@@ -15,6 +15,14 @@ class ProductService {
     }
     return await productRepository.create(productData);
   }
+
+  async updateStock(id, disponible) {
+    const producto = await productRepository.updateStock(id, disponible);
+    if (!producto) {
+      throw new Error('Producto no encontrado');
+    }
+    return producto;
+  }
 }
 
 module.exports = new ProductService();

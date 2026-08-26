@@ -8,13 +8,11 @@ const swaggerSpec = require('./config/swagger');
 const errorHandler = require('./middlewares/errorHandler'); // Importar Middleware
 const logger = require('./config/logger'); // Importar Logger
 
-
-
 // Rutas
 const authRoutes = require('./routes/authRoutes');
 const orderRoutes = require('./routes/orderRoutes');
-const productRoutes = require('./routes/productRoutes'); // Importamos productRoutes
-
+const localRoutes = require('./routes/localRoutes');
+const productRoutes = require('./routes/productRoutes');
 
 const app = express();
 
@@ -65,10 +63,13 @@ app.use((req, res, next) => {
 // Documentación Swagger
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Configuración de rutas anidadas (Productos bajo la jerarquía de Locales)
+localRoutes.use('/:localId/productos', productRoutes);
+
 // Rutas montadas
 app.use('/api/v1/auth', authLimiter, authRoutes);
 app.use('/api/v1/pedidos', orderRoutes);
-app.use('/api/v1/locales/:localId/productos', productRoutes); // Mapeo anidado directo
+app.use('/api/v1/locales', localRoutes);
 
 // Middleware de manejo global de errores (DEBE ir siempre al final de las rutas)
 app.use(errorHandler);

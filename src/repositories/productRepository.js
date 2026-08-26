@@ -1,4 +1,3 @@
-// src/repositories/productRepository.js
 const db = require('../config/db');
 
 class ProductRepository {
@@ -27,14 +26,33 @@ class ProductRepository {
   }
 
   async create(productData) {
-    const { localId, categoriaId, nombre, descripcion, precio, imagenUrl } = productData;
+    const { localId, categoriaId, nombre, descripcion, precio, imagenUrl, disponible } = productData;
     const query = `
-      INSERT INTO productos (local_id, categoria_id, nombre, descripcion, precio, imagen_url)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO productos (local_id, categoria_id, nombre, descripcion, precio, disponible, imagen_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *;
     `;
-    const { rows } = await db.query(query, [localId, categoriaId, nombre, descripcion, precio, imagenUrl]);
+    const { rows } = await db.query(query, [
+      localId,
+      categoriaId || null,
+      nombre,
+      descripcion,
+      precio,
+      disponible ?? true,
+      imagenUrl
+    ]);
     return rows[0];
+  }
+
+  async updateStock(id, disponible) {
+    const query = `
+      UPDATE productos
+      SET disponible = $1, actualizado_en = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *;
+    `;
+    const { rows } = await db.query(query, [disponible, id]);
+    return rows[0] || null;
   }
 }
 
