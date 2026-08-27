@@ -17,6 +17,7 @@ const geoRoutes = require('./routes/geoRoutes');
 const driverRoutes = require('./routes/driverRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
 
 const app = express();
 
@@ -78,6 +79,7 @@ app.use('/api/v1/telemetria', geoRoutes);
 app.use('/api/v1/repartidores', driverRoutes);
 app.use('/api/v1/pagos', paymentRoutes);
 app.use('/api/v1/notificaciones', notificationRoutes);
+app.use('/api/v1/resenas', reviewRoutes);
 
 // Middleware de manejo global de errores (DEBE ir siempre al final de las rutas)
 app.use(errorHandler);
