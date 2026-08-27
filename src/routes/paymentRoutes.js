@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const paymentController = require('../controllers/paymentController');
-const { authenticateJWT } = require('../middlewares/authMiddleware');
+const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
 
 /**
  * @swagger
@@ -59,5 +59,66 @@ router.post('/intent', authenticateJWT, paymentController.createPaymentIntent.bi
  *         description: Webhook recibido y procesado
  */
 router.post('/webhook', paymentController.handleWebhook.bind(paymentController));
+
+
+// En src/routes/paymentRoutes.js
+
+/**
+ * @swagger
+ * /pagos/pedidos/{pedidoId}/qr:
+ *   get:
+ *     summary: Generar QR dinámico de cobro (Usado por Caja o Delivery)
+ *     tags: [Pagos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: pedidoId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Payload del QR generado exitosamente
+ */
+router.get('/pedidos/:pedidoId/qr', authenticateJWT, paymentController.getPaymentQR.bind(paymentController));
+
+/**
+ * @swagger
+ * /pagos/pedidos/{pedidoId}/confirmar-manual:
+ *   post:
+ *     summary: Confirmar cobro manual en puerta o mostrador (Efectivo/Transferencia)
+ *     tags: [Pagos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: pedidoId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [metodoPago]
+ *             properties:
+ *               metodoPago:
+ *                 type: string
+ *                 enum: [efectivo, qr_mostrador, transferencia_confirmada]
+ *     responses:
+ *       200:
+ *         description: Pago confirmado y pedido actualizado a pagado
+ */
+router.post(
+  '/pedidos/:pedidoId/confirmar-manual', 
+  authenticateJWT, 
+  authorizeRoles('admin_local', 'repartidor', 'superadmin'), 
+  paymentController.confirmManualPayment.bind(paymentController)
+);
 
 module.exports = router;

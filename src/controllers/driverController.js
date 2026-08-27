@@ -29,15 +29,26 @@ class DriverController {
         data: {
           totalPedidos: hojaDeRuta.length,
           origen,
-          hojaDeRuta: hojaDeRuta.map(p => ({
-            orden: p.ordenSugerido,
-            pedidoId: p.pedido_id,
-            direccion: p.direccion_entrega,
-            minutosEspera: p.minutos_espera,
-            distanciaTramoKm: p.distanciaTramoKm,
-            montoTotal: p.monto_total,
-            coordenadas: { latitud: p.latitud, longitud: p.longitud }
-          }))
+          hojaDeRuta: hojaDeRuta.map(p => {
+            const monto = Number(p.monto_total);
+            const pagaCon = p.efectivo_paga_con ? Number(p.efectivo_paga_con) : null;
+            const vuelto = (pagaCon && pagaCon > monto) ? (pagaCon - monto) : 0;
+
+            return {
+              orden: p.ordenSugerido,
+              pedidoId: p.pedido_id,
+              direccion: p.direccion_entrega,
+              minutosEspera: p.minutos_espera,
+              distanciaTramoKm: p.distanciaTramoKm,
+              montoTotal: monto,
+              estaPagado: p.esta_pagado ?? false,
+              requiereCobro: p.requiere_cobro_en_entrega ?? !p.esta_pagado,
+              efectivoPagaCon: pagaCon,
+              vueltoAEntregar: vuelto,
+              qrParaCobrarPayload: `00020101021243650016com.mercadopago${p.pedido_id}5405${monto}5802AR`,
+              coordenadas: { latitud: p.latitud, longitud: p.longitud }
+            };
+          })
         }
       });
     } catch (error) {

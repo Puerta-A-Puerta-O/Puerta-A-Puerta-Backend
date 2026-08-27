@@ -1,4 +1,5 @@
 // src/services/paymentService.js
+const db = require('../config/db');
 const paymentRepository = require('../repositories/paymentRepository');
 const orderRepository = require('../repositories/orderRepository');
 

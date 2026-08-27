@@ -12,12 +12,16 @@ class DriverRepository {
         p.direccion_entrega,
         p.estado,
         p.monto_total,
+        p.esta_pagado,
+        p.requiere_cobro_en_entrega,
+        p.efectivo_paga_con,
         p.creado_en,
         ROUND(EXTRACT(EPOCH FROM (NOW() - p.creado_en)) / 60) AS minutos_espera,
         ST_X(p.ubicacion_entrega::geometry) AS longitud,
         ST_Y(p.ubicacion_entrega::geometry) AS latitud,
         l.id AS local_id,
         l.nombre AS local_nombre,
+        l.alias_cbu,
         ST_X(l.ubicacion::geometry) AS local_longitud,
         ST_Y(l.ubicacion::geometry) AS local_latitud
       FROM pedidos p

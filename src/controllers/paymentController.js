@@ -44,6 +44,33 @@ class PaymentController {
       next(error);
     }
   }
+
+  async getPaymentQR(req, res, next) {
+    try {
+      const { pedidoId } = req.params;
+      const resultado = await paymentService.generatePaymentDetails(pedidoId, 'qr');
+      return res.status(200).json({ status: 'success', data: resultado });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async confirmManualPayment(req, res, next) {
+    try {
+      const { pedidoId } = req.params;
+      const { metodoPago } = req.body;
+      const usuarioId = req.user.id;
+
+      const pago = await paymentService.confirmManualPayment(pedidoId, usuarioId, metodoPago);
+      return res.status(200).json({
+        status: 'success',
+        mensaje: 'Pago confirmado manualmente con éxito',
+        data: pago
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new PaymentController();
