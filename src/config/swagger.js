@@ -1,4 +1,3 @@
-// src/config/swagger.js
 const swaggerJSDoc = require('swagger-jsdoc');
 
 const options = {
@@ -7,27 +6,27 @@ const options = {
     info: {
       title: 'Puerta a Puerta API',
       version: '1.0.0',
-      description: 'Documentación de la API Backend con soporte PostGIS para Geofencing y Tracking GPS en tiempo real.'
+      description: 'Documentación de la API Backend con soporte PostGIS para Geofencing y Tracking GPS en tiempo real.',
     },
     servers: [
       {
         url: 'http://localhost:3000/api/v1',
-        description: 'Servidor Local de Desarrollo'
-      }
+        description: 'Servidor Local de Desarrollo',
+      },
     ],
     components: {
       securitySchemes: {
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'JWT'
-        }
-      }
-    }
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+    security: [{ bearerAuth: [] }],
   },
-  apis: ['./src/routes/*.js']
+  // Incluir todos los archivos de rutas para documentar
+  apis: ['./src/routes/*.js'],
 };
 
-const swaggerSpec = swaggerJSDoc(options);
-
-module.exports = swaggerSpec;
+module.exports = swaggerJSDoc(options);
