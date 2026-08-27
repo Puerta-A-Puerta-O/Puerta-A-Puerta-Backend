@@ -18,6 +18,7 @@ const driverRoutes = require('./routes/driverRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const app = express();
 
@@ -80,6 +81,7 @@ app.use('/api/v1/repartidores', driverRoutes);
 app.use('/api/v1/pagos', paymentRoutes);
 app.use('/api/v1/notificaciones', notificationRoutes);
 app.use('/api/v1/resenas', reviewRoutes);
+app.use('/api/v1/analiticas', analyticsRoutes);
 
 // Middleware de manejo global de errores (DEBE ir siempre al final de las rutas)
 app.use(errorHandler);
