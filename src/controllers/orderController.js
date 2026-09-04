@@ -1,32 +1,62 @@
 // src/controllers/orderController.js
 const orderService = require('../services/orderServices');
-const geoRepository = require('../repositories/geoRepository');
 
 class OrderController {
   async createOrder(req, res, next) {
     try {
       const clienteId = req.user.id;
-      const { localId, direccionEntrega, latitud, longitud, notas, items } = req.body;
+      const { localId, direccionEntrega, longitud, latitud, notas, items } = req.body;
 
-      const nuevoPedido = await orderService.createOrder({
+      const pedido = await orderService.createOrder({
         clienteId,
         localId,
         direccionEntrega,
-        latitud,
         longitud,
+        latitud,
         notas,
-        items
+        items,
       });
-
-      // Emisión WebSockets para el dashboard del local
-      const io = req.app.get('io');
-      if (io) {
-        io.to(`local_${localId}`).emit('nuevo_pedido', nuevoPedido);
-      }
 
       return res.status(201).json({
         status: 'success',
-        data: nuevoPedido,
+        data: pedido,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getOrderById(req, res, next) {
+    try {
+      const { pedidoId } = req.params;
+      const pedido = await orderService.getOrderById(pedidoId);
+
+      if (!pedido) {
+        return res.status(404).json({
+          status: 'error',
+          mensaje: 'Pedido no encontrado',
+        });
+      }
+
+      return res.status(200).json({
+        status: 'success',
+        data: pedido,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getOrders(req, res, next) {
+    try {
+      const clienteId = req.query.clienteId || (req.user.role === 'cliente' ? req.user.id : null);
+      const localId = req.query.localId;
+
+      const pedidos = await orderService.getOrders({ clienteId, localId });
+
+      return res.status(200).json({
+        status: 'success',
+        data: pedidos,
       });
     } catch (error) {
       next(error);
@@ -43,19 +73,8 @@ class OrderController {
         pedidoId,
         estado,
         repartidorId,
-        usuarioId
+        usuarioId,
       });
-
-      // Emisión WebSockets para la app del cliente/repartidor
-      const io = req.app.get('io');
-      if (io) {
-        io.to(`pedido_${pedidoId}`).emit('estado_actualizado', {
-          pedidoId: pedidoActualizado.id || pedidoId,
-          nuevoEstado: estado,
-          repartidorId: pedidoActualizado.repartidorId || repartidorId || null,
-          actualizadoEn: new Date(),
-        });
-      }
 
       return res.status(200).json({
         status: 'success',
@@ -69,15 +88,11 @@ class OrderController {
   async getTrackingHistory(req, res, next) {
     try {
       const { pedidoId } = req.params;
-      const historial = await geoRepository.getOrderRouteHistory(pedidoId);
+      const historial = await orderService.getTrackingHistory(pedidoId);
 
       return res.status(200).json({
         status: 'success',
-        data: {
-          pedidoId,
-          totalPuntos: historial.length,
-          ruta: historial
-        }
+        data: historial,
       });
     } catch (error) {
       next(error);

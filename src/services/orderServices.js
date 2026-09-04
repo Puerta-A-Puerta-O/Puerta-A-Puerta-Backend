@@ -61,6 +61,17 @@ class OrderService {
     return await orderRepository.updateStatus(pedidoId, pedido.estado, repartidorId);
   }
 
+  async getOrderById(pedidoId) {
+    return await orderRepository.findById(pedidoId);
+  }
+
+  async getOrders({ clienteId, localId }) {
+    return await orderRepository.findAll({ clienteId, localId });
+  }
+
+  async getTrackingHistory(pedidoId) {
+    return await orderRepository.getTrackingHistory(pedidoId);
+  }
   async changeOrderStatus({ pedidoId, estado: nuevoEstado, repartidorId, usuarioId }) {
     const pedido = await orderRepository.findById(pedidoId);
     if (!pedido) {

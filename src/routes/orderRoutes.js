@@ -7,8 +7,29 @@ const { checkDeliveryCoverage } = require('../middlewares/coverageMiddleware');
 const validateRequest = require('../middlewares/validateRequest');
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
 
-// Middleware global para proteger todas las rutas de pedidos
 router.use(authenticateJWT);
+
+/**
+ * @swagger
+ * /pedidos:
+ *   get:
+ *     summary: Obtener el historial de pedidos (filtrado por clienteId, localId o por token)
+ *     tags: [Pedidos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: clienteId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lista de pedidos devuelta con éxito
+ */
+router.get(
+  '/',
+  orderController.getOrders.bind(orderController)
+);
 
 /**
  * @swagger
@@ -16,45 +37,6 @@ router.use(authenticateJWT);
  *   post:
  *     summary: Crear un nuevo pedido
  *     tags: [Pedidos]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [localId, direccionEntrega, longitud, latitud, items]
- *             properties:
- *               localId:
- *                 type: string
- *                 format: uuid
- *               direccionEntrega:
- *                 type: string
- *               longitud:
- *                 type: number
- *               latitud:
- *                 type: number
- *               notas:
- *                 type: string
- *               items:
- *                 type: array
- *                 items:
- *                   type: object
- *                   required: [productoId, cantidad]
- *                   properties:
- *                     productoId:
- *                       type: string
- *                       format: uuid
- *                     cantidad:
- *                       type: integer
- *     responses:
- *       201:
- *         description: Pedido creado con éxito
- *       400:
- *         description: Datos de entrada inválidos o fuera de área de cobertura
- *       401:
- *         description: No autorizado
  */
 router.post(
   '/', 
@@ -68,7 +50,7 @@ router.post(
  * @swagger
  * /pedidos/{pedidoId}:
  *   get:
- *     summary: Obtener el detalle de un pedido
+ *     summary: Obtener el detalle de un pedido por ID
  *     tags: [Pedidos]
  *     security:
  *       - bearerAuth: []
@@ -80,72 +62,20 @@ router.post(
  *           type: string
  *     responses:
  *       200:
- *         description: Detalle del pedido obtenido con éxito
+ *         description: Detalle del pedido devuelto exitosamente
  *       404:
  *         description: Pedido no encontrado
  */
 router.get(
   '/:pedidoId',
-  orderController.getOrderById ? orderController.getOrderById.bind(orderController) : (req, res) => res.sendStatus(501)
+  orderController.getOrderById.bind(orderController)
 );
 
-/**
- * @swagger
- * /pedidos/{pedidoId}/tracking:
- *   get:
- *     summary: Obtiene el historial de ubicaciones GPS de un pedido
- *     tags: [Pedidos]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: pedidoId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Historial devuelto exitosamente
- *       401:
- *         description: No autorizado
- */
 router.get(
   '/:pedidoId/tracking',
   orderController.getTrackingHistory.bind(orderController)
 );
 
-/**
- * @swagger
- * /pedidos/{pedidoId}/estado:
- *   patch:
- *     summary: Actualiza el estado de un pedido
- *     tags: [Pedidos]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: pedidoId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               estado:
- *                 type: string
- *                 enum: [creado, confirmado, en_preparacion, en_camino, entregado, cancelado]
- *     responses:
- *       200:
- *         description: Estado actualizado exitosamente
- *       400:
- *         description: Transición de estado inválida
- *       403:
- *         description: Permisos insuficientes
- */
 router.patch(
   '/:pedidoId/estado',
   authorizeRoles('admin', 'admin_local', 'local', 'repartidor'),
