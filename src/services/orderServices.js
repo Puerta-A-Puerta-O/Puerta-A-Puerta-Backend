@@ -99,6 +99,52 @@ class OrderService {
 
     return await orderRepository.updateStatus(pedidoId, nuevoEstado, targetRepartidorId, usuarioId);
   }
+
+  // validaciones de negocio en la capa de servicios
+
+  async hideOrder(pedidoId, clienteId) {
+    const resultado = await orderRepository.hideOrderForClient(pedidoId, clienteId);
+    if (!resultado) {
+      const error = new Error('Pedido no encontrado o no pertenece al usuario');
+      error.statusCode = 404;
+      throw error;
+    }
+    return resultado;
+  }
+
+  async cancelOrder(pedidoId, clienteId) {
+    const pedido = await orderRepository.findById(pedidoId);
+    if (!pedido) {
+      const error = new Error('Pedido no encontrado');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (pedido.estado !== 'creado' && pedido.estado !== 'confirmado') {
+      const error = new Error(`No se puede cancelar un pedido en estado '${pedido.estado}'`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    return await orderRepository.cancelOrder(pedidoId, clienteId);
+  }
+
+  async updateOrder(pedidoId, clienteId, data) {
+    const pedido = await orderRepository.findById(pedidoId);
+    if (!pedido) {
+      const error = new Error('Pedido no encontrado');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (pedido.estado !== 'creado') {
+      const error = new Error('Solo se pueden editar pedidos que aún no han sido confirmados o preparados');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    return await orderRepository.updateOrderDetails(pedidoId, clienteId, data);
+  }
 }
 
 module.exports = new OrderService();

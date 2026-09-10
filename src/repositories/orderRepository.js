@@ -37,7 +37,7 @@ class OrderRepository {
       const { rows: orderRows } = await client.query(orderQuery, orderValues);
       const pedido = orderRows[0];
 
-      // 2. Insertar ítems en batch utilizando un solo INSERT dinámico (evita N consultas consecutivas)
+      // 2. Insertar ítems en batch utilizando un solo INSERT dinámico
       const itemValues = [];
       const itemValueClause = items.map((item, index) => {
         const offset = index * 5;
@@ -99,13 +99,14 @@ class OrderRepository {
 
   /**
    * Lista de pedidos filtrada opcionalmente por cliente_id o local_id
+   * Ignora los pedidos que el cliente haya marcado como ocultos.
    */
   async findAll({ clienteId, localId } = {}) {
     let query = `
       SELECT p.id, p.cliente_id, p.local_id, p.repartidor_id, p.estado, p.monto_total, 
-             p.direccion_entrega, p.notas, p.creado_en, p.actualizado_en
+            p.direccion_entrega, p.notas, p.creado_en, p.actualizado_en
       FROM pedidos p
-      WHERE 1=1
+      WHERE (p.oculto_cliente IS FALSE OR p.oculto_cliente IS NULL)
     `;
     const values = [];
 
@@ -172,6 +173,51 @@ class OrderRepository {
     `;
     const { rows } = await db.query(query, [pedidoId]);
     return rows;
+  }
+
+  /**
+   * Ocultar pedido (Soft delete para el cliente)
+   */
+  async hideOrderForClient(pedidoId, clienteId) {
+    const query = `
+      UPDATE pedidos
+      SET oculto_cliente = TRUE
+      WHERE id = $1 AND cliente_id = $2
+      RETURNING id;
+    `;
+    const { rows } = await db.query(query, [pedidoId, clienteId]);
+    return rows[0];
+  }
+
+  /**
+   * Cancelar pedido (Cambio de estado)
+   */
+  async cancelOrder(pedidoId, clienteId) {
+    const query = `
+      UPDATE pedidos
+      SET estado = 'cancelado',
+          actualizado_en = CURRENT_TIMESTAMP
+      WHERE id = $1 AND cliente_id = $2 AND estado IN ('creado', 'confirmado')
+      RETURNING id, estado;
+    `;
+    const { rows } = await db.query(query, [pedidoId, clienteId]);
+    return rows[0];
+  }
+
+  /**
+   * Editar dirección o notas (Solo si el estado es 'creado')
+   */
+  async updateOrderDetails(pedidoId, clienteId, { direccionEntrega, notas }) {
+    const query = `
+      UPDATE pedidos
+      SET direccion_entrega = COALESCE($1, direccion_entrega),
+          notas = COALESCE($2, notas),
+          actualizado_en = CURRENT_TIMESTAMP
+      WHERE id = $3 AND cliente_id = $4 AND estado = 'creado'
+      RETURNING id, direccion_entrega, notas, estado;
+    `;
+    const { rows } = await db.query(query, [direccionEntrega, notas, pedidoId, clienteId]);
+    return rows[0];
   }
 }
 

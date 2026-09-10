@@ -98,6 +98,53 @@ class OrderController {
       next(error);
     }
   }
+
+  async hideOrder(req, res, next) {
+    try {
+      const { pedidoId } = req.params;
+      const clienteId = req.user.id;
+      await orderService.hideOrder(pedidoId, clienteId);
+
+      return res.status(200).json({
+        status: 'success',
+        mensaje: 'Pedido ocultado del historial correctamente',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async cancelOrder(req, res, next) {
+    try {
+      const { pedidoId } = req.params;
+      const clienteId = req.user.id;
+      const pedido = await orderService.cancelOrder(pedidoId, clienteId);
+
+      return res.status(200).json({
+        status: 'success',
+        data: pedido,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateOrder(req, res, next) {
+    try {
+      const { pedidoId } = req.params;
+      const clienteId = req.user.id;
+      const { direccionEntrega, notas } = req.body;
+
+      const pedido = await orderService.updateOrder(pedidoId, clienteId, { direccionEntrega, notas });
+
+      return res.status(200).json({
+        status: 'success',
+        data: pedido,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new OrderController();

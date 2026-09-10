@@ -84,4 +84,24 @@ router.patch(
   orderController.changeStatus.bind(orderController)
 );
 
+
+
+// Ocultar del historial (Soft Delete)
+router.patch(
+  '/:pedidoId/ocultar',
+  orderController.hideOrder.bind(orderController)
+);
+
+// Cancelar pedido
+router.patch(
+  '/:pedidoId/cancelar',
+  orderController.cancelOrder.bind(orderController)
+);
+
+// Editar pedido (Dirección / Notas)
+router.put(
+  '/:pedidoId',
+  orderController.updateOrder.bind(orderController)
+);
+
 module.exports = router;
