@@ -1,72 +1,95 @@
 // src/sockets/tracking.js
-const db = require('../config/db');
+const geoRepository = require('../repositories/geoRepository');
 const orderRepository = require('../repositories/orderRepository');
 const geoService = require('../services/geoService');
 const { ESTADOS } = require('../utils/orderStateMachine');
 
 module.exports = (io) => {
   io.on('connection', (socket) => {
-    console.log(`🔌 Cliente conectado vía WebSocket: ${socket.id}`);
+    console.log(`🔌 Cliente/Repartidor conectado vía WebSocket: ${socket.id} (Usuario ID: ${socket.usuario?.id || 'Desconocido'})`);
 
-    // El cliente (app del usuario) se une a la sala de su pedido
-    socket.on('unirse_a_pedido', (pedidoId) => {
-      socket.join(`pedido_${pedidoId}`);
-      console.log(`📡 Socket ${socket.id} escuchando el pedido: ${pedidoId}`);
+    // Escuchar cuando un cliente o repartidor se une a la sala del pedido
+    socket.on('unirse_pedido', ({ pedidoId }) => {
+      if (pedidoId) {
+        socket.join(`pedido_${pedidoId}`);
+        console.log(`📡 Socket ${socket.id} se unió a la sala: pedido_${pedidoId}`);
+      }
     });
 
-    // El repartidor envía su ubicación GPS en tiempo real
+    // Alias por compatibilidad de eventos
+    socket.on('unirse_a_pedido', (pedidoId) => {
+      if (pedidoId) {
+        socket.join(`pedido_${pedidoId}`);
+        console.log(`📡 Socket ${socket.id} se unió a la sala: pedido_${pedidoId}`);
+      }
+    });
+
+    // Emisión GPS en tiempo real del repartidor
     socket.on('actualizar_ubicacion', async (data) => {
-      const { pedidoId, repartidorId, latitud, longitud, velocidad } = data;
+      const { pedidoId, latitud, longitud, velocidad } = data;
+      const repartidorId = socket.usuario?.id || socket.usuario?.sub || data.repartidorId;
+
+      if (!pedidoId || latitud === undefined || longitud === undefined) {
+        return;
+      }
 
       try {
-        // 1. Guardar la posición en la tabla de telemetría (PostGIS)
-        const insertGeoQuery = `
-          INSERT INTO pedido_ubicaciones (pedido_id, repartidor_id, ubicacion, velocidad_kms)
-          VALUES ($1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), $5);
-        `;
-        await db.query(insertGeoQuery, [pedidoId, repartidorId, longitud, latitud, velocidad || 0]);
+        // 1. Guardar la posición en PostGIS mediante el repositorio
+        if (repartidorId) {
+          await geoRepository.saveDeliveryPoint(
+            pedidoId,
+            repartidorId,
+            latitud,
+            longitud,
+            velocidad || 0
+          );
+        }
 
-        // 2. Obtener datos del pedido para conocer el punto de entrega
+        // 2. Obtener datos del pedido para calcular la distancia al destino
         const pedido = await orderRepository.findById(pedidoId);
-        if (!pedido) return;
+        let distanciaMetros = null;
+        let etaMinutos = null;
+        let enGeocerca = false;
 
-        // 3. Calcular distancia restante y ETA en tiempo real
-        const distanciaMetros = geoService.calcularDistanciaMetros(
-          latitud,
-          longitud,
-          pedido.latitud,
-          pedido.longitud
-        );
-        const etaMinutos = geoService.estimarTiempoMinutos(distanciaMetros, velocidad || 25);
-        const enGeocerca = geoService.estaEnGeocercaLlegada(distanciaMetros);
+        if (pedido && pedido.latitud && pedido.longitud) {
+          distanciaMetros = geoService.calcularDistanciaMetros(
+            latitud,
+            longitud,
+            pedido.latitud,
+            pedido.longitud
+          );
+          etaMinutos = geoService.estimarTiempoMinutos(distanciaMetros, velocidad || 25);
+          enGeocerca = geoService.estaEnGeocercaLlegada(distanciaMetros);
+        }
 
-        // 4. Retransmitir posición y telemetría a los suscriptores del pedido
+        // 3. Emitir actualización a todos los suscriptores de la sala
         io.to(`pedido_${pedidoId}`).emit('ubicacion_actualizada', {
           pedidoId,
           latitud,
           longitud,
+          velocidad: velocidad || 0,
           distanciaMetros,
           etaMinutos,
           enGeocerca,
-          timestamp: new Date(),
+          timestamp: new Date()
         });
 
-        // 5. Si entró en la geocerca de 100m y el pedido sigue "en_camino", notificar evento especial de llegada
-        if (enGeocerca && pedido.estado === ESTADOS.EN_CAMINO) {
+        // 4. Si el repartidor entró a la geocerca (< 100m) y el estado es 'en_camino', notificar llegada en puerta
+        if (enGeocerca && pedido && pedido.estado === ESTADOS.EN_CAMINO) {
           io.to(`pedido_${pedidoId}`).emit('repartidor_en_puerta', {
             pedidoId,
             mensaje: '¡El repartidor se encuentra a menos de 100 metros de tu domicilio!',
-            distanciaMetros,
+            distanciaMetros
           });
         }
 
       } catch (error) {
-        console.error('❌ Error al procesar telemetría GPS:', error);
+        console.error('❌ Error al procesar la telemetría GPS vía Socket:', error.message);
       }
     });
 
     socket.on('disconnect', () => {
-      console.log(`❌ Cliente desconectado: ${socket.id}`);
+      console.log(`❌ Socket desconectado: ${socket.id}`);
     });
   });
 };

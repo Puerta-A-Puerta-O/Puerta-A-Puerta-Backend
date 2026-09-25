@@ -71,6 +71,60 @@ class DriverController {
       next(error);
     }
   }
+
+  /**
+   * Actualiza la última posición GPS del repartidor
+   */
+  async updateLocation(req, res, next) {
+    try {
+      const repartidorUsuarioId = req.user.id;
+      const { latitud, longitud } = req.body;
+
+      if (!latitud || !longitud) {
+        return res.status(400).json({ status: 'error', mensaje: 'Latitud y longitud son requeridas' });
+      }
+
+      const ubicacion = await driverRepository.updateLocation(repartidorUsuarioId, latitud, longitud);
+      return res.status(200).json({ status: 'success', data: ubicacion });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Obtiene la lista de pedidos disponibles para ser tomados
+   */
+  async getAvailableOrders(req, res, next) {
+    try {
+      const pedidos = await driverRepository.findAvailableOrders();
+      return res.status(200).json({ status: 'success', data: pedidos });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Permite al repartidor tomar un pedido disponible
+   */
+  async acceptOrder(req, res, next) {
+    try {
+      const repartidorUsuarioId = req.user.id;
+      const { id: pedidoId } = req.params;
+
+      const pedidoAsignado = await driverRepository.assignOrder(pedidoId, repartidorUsuarioId);
+
+      if (!pedidoAsignado) {
+        return res.status(409).json({ 
+          status: 'error', 
+          mensaje: 'El pedido ya no está disponible o ya fue tomado por otro repartidor.' 
+        });
+      }
+
+      return res.status(200).json({ status: 'success', data: pedidoAsignado });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new DriverController();

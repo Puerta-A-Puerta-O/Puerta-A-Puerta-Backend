@@ -54,4 +54,63 @@ router.get('/hoja-de-ruta', driverController.getDeliveryRoute.bind(driverControl
  */
 router.patch('/disponibilidad', driverController.updateAvailability.bind(driverController));
 
+/**
+ * @swagger
+ * /repartidores/ubicacion:
+ *   post:
+ *     summary: Enviar actualización de ubicación GPS en tiempo real
+ *     tags: [Repartidores]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               latitud:
+ *                 type: number
+ *               longitud:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Ubicación actualizada
+ */
+router.post('/ubicacion', driverController.updateLocation.bind(driverController));
+
+/**
+ * @swagger
+ * /repartidores/pedidos-disponibles:
+ *   get:
+ *     summary: Ver lista de pedidos listos para tomar
+ *     tags: [Repartidores]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de pedidos disponibles
+ */
+router.get('/pedidos-disponibles', driverController.getAvailableOrders.bind(driverController));
+
+/**
+ * @swagger
+ * /repartidores/pedidos/{id}/aceptar:
+ *   post:
+ *     summary: Tomar/Aceptar un pedido disponible
+ *     tags: [Repartidores]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Pedido asignado con éxito
+ */
+router.post('/pedidos/:id/aceptar', driverController.acceptOrder.bind(driverController));
+
 module.exports = router;
