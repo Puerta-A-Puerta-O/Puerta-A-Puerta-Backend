@@ -3,6 +3,10 @@ const driverRepository = require('../repositories/driverRepository');
 const routeOptimizationService = require('../services/routeOptimizationService');
 
 class DriverController {
+  /**
+   * Obtiene la hoja de ruta optimizada para el repartidor.
+   * Retorna 'data' como un Array plano directamente compatible con el cliente Flutter.
+   */
   async getDeliveryRoute(req, res, next) {
     try {
       const repartidorUsuarioId = req.user.id;
@@ -10,11 +14,11 @@ class DriverController {
 
       const pedidosAsignados = await driverRepository.getOrdersForRouteOptimization(repartidorUsuarioId);
 
-      if (pedidosAsignados.length === 0) {
+      if (!pedidosAsignados || pedidosAsignados.length === 0) {
         return res.status(200).json({
           status: 'success',
           mensaje: 'No tienes pedidos pendientes de entrega.',
-          data: { hojaDeRuta: [] }
+          data: []
         });
       }
 
@@ -24,32 +28,39 @@ class DriverController {
 
       const hojaDeRuta = routeOptimizationService.optimizeSmartDeliveryRoute(origen, pedidosAsignados);
 
+      // Mapeo plano para que coincida exactamente con OrderRouteEntity en Flutter
+      const dataFormateada = hojaDeRuta.map(p => {
+        const monto = Number(p.monto_total || 0);
+        const pagaCon = p.efectivo_paga_con ? Number(p.efectivo_paga_con) : null;
+        const vuelto = (pagaCon && pagaCon > monto) ? (pagaCon - monto) : 0;
+
+        return {
+          orden: p.ordenSugerido,
+          pedidoId: p.pedido_id,
+          localNombre: p.local_nombre || 'Comercio',
+          direccionEntrega: p.direccion_entrega,
+          direccion: p.direccion_entrega,
+          latitud: p.latitud != null ? parseFloat(p.latitud) : null,
+          longitud: p.longitud != null ? parseFloat(p.longitud) : null,
+          estado: p.estado || 'asignado',
+          minutosEspera: p.minutos_espera,
+          distanciaTramoKm: p.distanciaTramoKm,
+          montoTotal: monto,
+          estaPagado: p.esta_pagado ?? false,
+          requiereCobro: p.requiere_cobro_en_entrega ?? !p.esta_pagado,
+          efectivoPagaCon: pagaCon,
+          vueltoAEntregar: vuelto,
+          qrParaCobrarPayload: `00020101021243650016com.mercadopago${p.pedido_id}5405${monto}5802AR`,
+          coordenadas: {
+            latitud: p.latitud != null ? parseFloat(p.latitud) : null,
+            longitud: p.longitud != null ? parseFloat(p.longitud) : null
+          }
+        };
+      });
+
       return res.status(200).json({
         status: 'success',
-        data: {
-          totalPedidos: hojaDeRuta.length,
-          origen,
-          hojaDeRuta: hojaDeRuta.map(p => {
-            const monto = Number(p.monto_total);
-            const pagaCon = p.efectivo_paga_con ? Number(p.efectivo_paga_con) : null;
-            const vuelto = (pagaCon && pagaCon > monto) ? (pagaCon - monto) : 0;
-
-            return {
-              orden: p.ordenSugerido,
-              pedidoId: p.pedido_id,
-              direccion: p.direccion_entrega,
-              minutosEspera: p.minutos_espera,
-              distanciaTramoKm: p.distanciaTramoKm,
-              montoTotal: monto,
-              estaPagado: p.esta_pagado ?? false,
-              requiereCobro: p.requiere_cobro_en_entrega ?? !p.esta_pagado,
-              efectivoPagaCon: pagaCon,
-              vueltoAEntregar: vuelto,
-              qrParaCobrarPayload: `00020101021243650016com.mercadopago${p.pedido_id}5405${monto}5802AR`,
-              coordenadas: { latitud: p.latitud, longitud: p.longitud }
-            };
-          })
-        }
+        data: dataFormateada
       });
     } catch (error) {
       next(error);
@@ -80,7 +91,7 @@ class DriverController {
       const repartidorUsuarioId = req.user.id;
       const { latitud, longitud } = req.body;
 
-      if (!latitud || !longitud) {
+      if (latitud == null || longitud == null) {
         return res.status(400).json({ status: 'error', mensaje: 'Latitud y longitud son requeridas' });
       }
 

@@ -3,7 +3,7 @@ const db = require('../config/db');
 
 class DriverRepository {
   /**
-   * Actualiza o inserta la ubicación geográfica del repartidor
+   * Actualiza la ubicación geográfica del repartidor
    */
   async updateLocation(repartidorUsuarioId, latitud, longitud) {
     const query = `
@@ -24,7 +24,7 @@ class DriverRepository {
   }
 
   /**
-   * Obtiene la lista de pedidos disponibles para tomar
+   * Obtiene la lista de pedidos DISPONIBLES (Sin repartidor asignado)
    */
   async findAvailableOrders() {
     const query = `
@@ -35,31 +35,33 @@ class DriverRepository {
              ST_Y(l.ubicacion::geometry) AS local_latitud
       FROM pedidos p
       JOIN locales l ON p.local_id = l.id
-      WHERE p.estado IN ('confirmado', 'en_preparacion', 'listo_para_retirar') 
-        AND p.repartidor_id IS NULL
+      WHERE p.estado IN ('creado', 'confirmado', 'en_preparacion', 'listo_para_retirar') 
+        AND p.repartidor_id IS NULL -- Debe asegurarse de que sea estrictamente NULL
       ORDER BY p.creado_en ASC;
     `;
     const { rows } = await db.query(query);
     return rows;
   }
 
-  /**
-   * Asigna un pedido disponible al repartidor
+ /**
+   * Asigna un pedido disponible al repartidor sin alterar su estado previo.
+   * Garantiza atómicamente que solo se asignará si NINGÚN otro repartidor lo ha tomado.
    */
   async assignOrder(pedidoId, repartidorUsuarioId) {
     const query = `
       UPDATE pedidos
       SET repartidor_id = $1,
-          actualizado_en = CURRENT_TIMESTAMP
-      WHERE id = $2 AND repartidor_id IS NULL
+          actualizado_en = NOW()
+      WHERE id = $2 
+        AND repartidor_id IS NULL -- Estricto: Solo si aún no tiene repartidor
       RETURNING id, estado, repartidor_id AS "repartidorId", actualizado_en;
     `;
-    const { rows } = await db.query(query, [repartidorUsuarioId, pedidoId]);
-    return rows[0] || null;
+    const result = await db.query(query, [repartidorUsuarioId, pedidoId]);
+    return result.rows[0];
   }
 
   /**
-   * Obtiene los pedidos asignados/pendientes para optimización de ruta
+   * Obtiene la Hoja de Ruta para los pedidos asignados al repartidor
    */
   async getOrdersForRouteOptimization(repartidorUsuarioId) {
     const query = `
@@ -73,8 +75,8 @@ class DriverRepository {
         p.efectivo_paga_con,
         p.creado_en,
         ROUND(EXTRACT(EPOCH FROM (NOW() - p.creado_en)) / 60) AS minutos_espera,
-        ST_X(p.ubicacion_entrega::geometry) AS longitud,
-        ST_Y(p.ubicacion_entrega::geometry) AS latitud,
+        COALESCE(ST_X(p.ubicacion_entrega::geometry), ST_X(l.ubicacion::geometry)) AS longitud,
+        COALESCE(ST_Y(p.ubicacion_entrega::geometry), ST_Y(l.ubicacion::geometry)) AS latitud,
         l.id AS local_id,
         l.nombre AS local_nombre,
         l.alias_cbu,
@@ -83,7 +85,7 @@ class DriverRepository {
       FROM pedidos p
       JOIN locales l ON p.local_id = l.id
       WHERE p.repartidor_id = $1 
-        AND p.estado IN ('listo_para_retirar', 'en_camino')
+        AND p.estado IN ('creado', 'confirmado', 'en_preparacion', 'listo_para_retirar', 'en_camino')
       ORDER BY p.creado_en ASC;
     `;
     const { rows } = await db.query(query, [repartidorUsuarioId]);
@@ -91,7 +93,7 @@ class DriverRepository {
   }
 
   /**
-   * Cambia el estado de disponibilidad del repartidor
+   * Actualiza estado de disponibilidad
    */
   async updateAvailability(usuarioId, estado) {
     const query = `

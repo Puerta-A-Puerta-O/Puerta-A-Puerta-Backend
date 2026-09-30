@@ -99,12 +99,11 @@ class OrderRepository {
 
   /**
    * Lista de pedidos filtrada opcionalmente por cliente_id o local_id
-   * Ignora los pedidos que el cliente haya marcado como ocultos.
    */
-  async findAll({ clienteId, localId } = {}) {
+  async findAll({ clienteId, localId, estado, sinRepartidor } = {}) {
     let query = `
       SELECT p.id, p.cliente_id, p.local_id, p.repartidor_id, p.estado, p.monto_total, 
-            p.direccion_entrega, p.notas, p.creado_en, p.actualizado_en
+             p.direccion_entrega, p.notas, p.creado_en, p.actualizado_en
       FROM pedidos p
       WHERE (p.oculto_cliente IS FALSE OR p.oculto_cliente IS NULL)
     `;
@@ -120,10 +119,83 @@ class OrderRepository {
       query += ` AND p.local_id = $${values.length}`;
     }
 
+    if (estado) {
+      values.push(estado);
+      query += ` AND p.estado = $${values.length}`;
+    }
+
+    if (sinRepartidor) {
+      query += ` AND p.repartidor_id IS NULL`;
+    }
+
     query += ` ORDER BY p.creado_en DESC;`;
 
     const { rows } = await db.query(query, values);
     return rows;
+  }
+
+  /**
+   * 🟢 OBTENER PEDIDOS DISPONIBLES PARA REPARTIDORES
+   * Filtra pedidos que NO tengan repartidor asignado y cuyos estados NO sean 'entregado' ni 'cancelado'.
+   */
+  async findAvailableForDrivers() {
+    const query = `
+      SELECT p.id, p.id AS "pedidoId", p.cliente_id, p.local_id, p.estado, p.monto_total AS "montoTotal",
+             p.direccion_entrega AS "direccionEntrega",
+             ST_X(p.ubicacion_entrega::geometry) AS longitud,
+             ST_Y(p.ubicacion_entrega::geometry) AS latitud,
+             COALESCE(l.nombre, 'Local') AS "localNombre",
+             p.creado_en
+      FROM pedidos p
+      LEFT JOIN locales l ON p.local_id = l.id
+      WHERE p.repartidor_id IS NULL
+        AND p.estado NOT IN ('entregado', 'cancelado')
+      ORDER BY p.creado_en ASC;
+    `;
+    const { rows } = await db.query(query);
+    return rows;
+  }
+
+  /**
+   * 🟢 OBTENER LA HOJA DE RUTA / PEDIDOS ASIGNADOS A UN REPARTIDOR
+   * Excluye automáticamente los pedidos que ya fueron entregados o cancelados.
+   */
+  async findRouteByDriverId(repartidorId) {
+    const query = `
+      SELECT p.id, p.id AS "pedidoId", p.cliente_id, p.local_id, p.repartidor_id, p.estado, 
+             p.monto_total AS "montoTotal", p.direccion_entrega AS "direccionEntrega",
+             ST_X(p.ubicacion_entrega::geometry) AS longitud,
+             ST_Y(p.ubicacion_entrega::geometry) AS latitud,
+             COALESCE(l.nombre, 'Local') AS "localNombre",
+             COALESCE(p.esta_pagado, true) AS "estaPagado",
+             p.creado_en
+      FROM pedidos p
+      LEFT JOIN locales l ON p.local_id = l.id
+      WHERE p.repartidor_id = $1
+        AND p.estado NOT IN ('entregado', 'cancelado')
+      ORDER BY p.creado_en ASC;
+    `;
+    const { rows } = await db.query(query, [repartidorId]);
+    return rows;
+  }
+
+  /**
+   * 🟢 ASIGNAR PEDIDO A UN REPARTIDOR (Evita conflictos 409)
+   * Solo asigna si el pedido no tiene repartidor y no está entregado/cancelado.
+   */
+  async assignOrderToDriver(pedidoId, repartidorId) {
+    const query = `
+      UPDATE pedidos
+      SET repartidor_id = $1,
+          estado = CASE WHEN estado = 'creado' THEN 'confirmado' ELSE estado END,
+          actualizado_en = CURRENT_TIMESTAMP
+      WHERE id = $2
+        AND repartidor_id IS NULL
+        AND estado NOT IN ('entregado', 'cancelado')
+      RETURNING id, estado, repartidor_id AS "repartidorId";
+    `;
+    const { rows } = await db.query(query, [repartidorId, pedidoId]);
+    return rows[0] || null; // Si devuelve null, lanza o provoca el error 409
   }
 
   /**
