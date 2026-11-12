@@ -36,14 +36,14 @@ class DriverRepository {
       FROM pedidos p
       JOIN locales l ON p.local_id = l.id
       WHERE p.estado IN ('creado', 'confirmado', 'en_preparacion', 'listo_para_retirar') 
-        AND p.repartidor_id IS NULL -- Debe asegurarse de que sea estrictamente NULL
+        AND p.repartidor_id IS NULL -- Excluye estrictamente los que ya tienen repartidor
       ORDER BY p.creado_en ASC;
     `;
     const { rows } = await db.query(query);
     return rows;
   }
 
- /**
+  /**
    * Asigna un pedido disponible al repartidor sin alterar su estado previo.
    * Garantiza atómicamente que solo se asignará si NINGÚN otro repartidor lo ha tomado.
    */
@@ -61,25 +61,30 @@ class DriverRepository {
   }
 
   /**
-   * Obtiene la Hoja de Ruta para los pedidos asignados al repartidor
+   * Obtiene la Hoja de Ruta para los pedidos asignados al repartidor.
+   * Se incluyen alias en camelCase para mapeo directo con Flutter (OrderRouteEntity).
    */
   async getOrdersForRouteOptimization(repartidorUsuarioId) {
     const query = `
       SELECT 
+        p.id AS "pedidoId",
         p.id AS pedido_id,
+        p.direccion_entrega AS "direccion",
         p.direccion_entrega,
-        p.estado,
+        p.estado AS "estado",
+        p.monto_total AS "montoTotal",
         p.monto_total,
-        p.esta_pagado,
-        p.requiere_cobro_en_entrega,
+        p.esta_pagado AS "estaPagado",
+        p.requiere_cobro_en_entrega AS "requiereCobro",
         p.efectivo_paga_con,
         p.creado_en,
         ROUND(EXTRACT(EPOCH FROM (NOW() - p.creado_en)) / 60) AS minutos_espera,
         COALESCE(ST_X(p.ubicacion_entrega::geometry), ST_X(l.ubicacion::geometry)) AS longitud,
         COALESCE(ST_Y(p.ubicacion_entrega::geometry), ST_Y(l.ubicacion::geometry)) AS latitud,
         l.id AS local_id,
+        l.nombre AS "localNombre",
         l.nombre AS local_nombre,
-        l.alias_cbu,
+        l.alias_cbu AS "aliasCbu",
         ST_X(l.ubicacion::geometry) AS local_longitud,
         ST_Y(l.ubicacion::geometry) AS local_latitud
       FROM pedidos p
@@ -93,7 +98,7 @@ class DriverRepository {
   }
 
   /**
-   * Actualiza estado de disponibilidad
+   * Actualiza estado de disponibilidad del repartidor
    */
   async updateAvailability(usuarioId, estado) {
     const query = `
