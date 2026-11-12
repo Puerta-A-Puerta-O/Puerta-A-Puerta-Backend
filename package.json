@@ -6,6 +6,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/seeds/seed.js",
+    "db:migrate": "node src/db/migrate.js",
+    "db:setup": "npm run db:migrate && npm run seed",
     "test": "jest --runInBand --detectOpenHandles"
   },
   "keywords": [],
