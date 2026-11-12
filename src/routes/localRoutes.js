@@ -5,6 +5,7 @@ const localController = require('../controllers/localController');
 
 // Importamos exactamente como está en authMiddleware.js
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
+const { requireLocalOwnership } = require('../middlewares/ownershipMiddleware');
 
 /**
  * @swagger
@@ -110,14 +111,15 @@ router.get('/', localController.getNearby);
 router.post(
   '/', 
   authenticateJWT, 
-  authorizeRoles('admin', 'admin_local', 'superadmin'), 
+  authorizeRoles('admin_local', 'superadmin'), 
   localController.create
 );
 
 router.put(
   '/:id/cobertura', 
   authenticateJWT, 
-  authorizeRoles('admin', 'admin_local', 'superadmin'), 
+  authorizeRoles('admin_local', 'superadmin'), 
+  requireLocalOwnership('id'),
   localController.setCoverage
 );
 

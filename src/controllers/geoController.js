@@ -1,5 +1,6 @@
 // src/controllers/geoController.js
 const geoRepository = require('../repositories/geoRepository');
+const authorizationService = require('../services/authorizationService');
 
 class GeoController {
   async saveLocation(req, res, next) {
@@ -7,9 +8,12 @@ class GeoController {
       const repartidorId = req.user.id;
       const { pedidoId, latitud, longitud, velocidadKms } = req.body;
 
-      if (!pedidoId || !latitud || !longitud) {
+      if (!pedidoId || latitud === undefined || longitud === undefined) {
         return res.status(400).json({ status: 'error', mensaje: 'pedidoId, latitud y longitud son requeridos' });
       }
+
+      // El GPS solo puede reportarse para un pedido asignado al repartidor autenticado.
+      await authorizationService.assertDriverAssignedToOrder(pedidoId, req.user);
 
       const registroUbicacion = await geoRepository.saveLocation({
         pedidoId,
@@ -36,7 +40,7 @@ class GeoController {
         data: registroUbicacion
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 }

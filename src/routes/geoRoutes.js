@@ -41,7 +41,7 @@ router.use(authenticateJWT);
  */
 router.post(
   '/',
-  authorizeRoles('repartidor', 'superadmin', 'admin_local'),
+  authorizeRoles('repartidor', 'superadmin'),
   geoController.saveLocation.bind(geoController)
 );
 

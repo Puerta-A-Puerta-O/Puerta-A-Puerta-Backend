@@ -2,48 +2,60 @@
 const geoRepository = require('../repositories/geoRepository');
 const orderRepository = require('../repositories/orderRepository');
 const geoService = require('../services/geoService');
+const authorizationService = require('../services/authorizationService');
 const { ESTADOS } = require('../utils/orderStateMachine');
 
 module.exports = (io) => {
   io.on('connection', (socket) => {
-    console.log(`🔌 Cliente/Repartidor conectado vía WebSocket: ${socket.id} (Usuario ID: ${socket.usuario?.id || 'Desconocido'})`);
+    if (!socket.usuario?.id) {
+      socket.disconnect(true);
+      return;
+    }
 
-    // Escuchar cuando un cliente o repartidor se une a la sala del pedido
-    socket.on('unirse_pedido', ({ pedidoId }) => {
-      if (pedidoId) {
+    console.log(`🔌 Socket conectado: ${socket.id} (Usuario: ${socket.usuario.id})`);
+
+    // Solo se entra a la sala si el usuario puede ver el pedido.
+    const unirseAPedido = async (pedidoId) => {
+      if (!pedidoId) return;
+
+      try {
+        await authorizationService.assertOrderAccess(pedidoId, socket.usuario);
         socket.join(`pedido_${pedidoId}`);
         console.log(`📡 Socket ${socket.id} se unió a la sala: pedido_${pedidoId}`);
+      } catch (error) {
+        socket.emit('error_autorizacion', {
+          pedidoId,
+          mensaje: error.message || 'No tenés acceso a este pedido',
+        });
       }
-    });
+    };
+
+    socket.on('unirse_pedido', ({ pedidoId } = {}) => unirseAPedido(pedidoId));
 
     // Alias por compatibilidad de eventos
-    socket.on('unirse_a_pedido', (pedidoId) => {
-      if (pedidoId) {
-        socket.join(`pedido_${pedidoId}`);
-        console.log(`📡 Socket ${socket.id} se unió a la sala: pedido_${pedidoId}`);
-      }
-    });
+    socket.on('unirse_a_pedido', (pedidoId) => unirseAPedido(pedidoId));
 
     // Emisión GPS en tiempo real del repartidor
-    socket.on('actualizar_ubicacion', async (data) => {
+    socket.on('actualizar_ubicacion', async (data = {}) => {
       const { pedidoId, latitud, longitud, velocidad } = data;
-      const repartidorId = socket.usuario?.id || socket.usuario?.sub || data.repartidorId;
+      const repartidorId = socket.usuario?.id;
 
       if (!pedidoId || latitud === undefined || longitud === undefined) {
         return;
       }
 
       try {
+        // El repartidor solo puede enviar GPS de un pedido que tenga asignado.
+        await authorizationService.assertDriverAssignedToOrder(pedidoId, socket.usuario);
+
         // 1. Guardar la posición en PostGIS mediante el repositorio
-        if (repartidorId) {
-          await geoRepository.saveDeliveryPoint(
-            pedidoId,
-            repartidorId,
-            latitud,
-            longitud,
-            velocidad || 0
-          );
-        }
+        await geoRepository.saveDeliveryPoint(
+          pedidoId,
+          repartidorId,
+          latitud,
+          longitud,
+          velocidad || 0
+        );
 
         // 2. Obtener datos del pedido para calcular la distancia al destino
         const pedido = await orderRepository.findById(pedidoId);
@@ -84,6 +96,10 @@ module.exports = (io) => {
         }
 
       } catch (error) {
+        socket.emit('error_autorizacion', {
+          pedidoId,
+          mensaje: error.message || 'No podés enviar telemetría de este pedido',
+        });
         console.error('❌ Error al procesar la telemetría GPS vía Socket:', error.message);
       }
     });

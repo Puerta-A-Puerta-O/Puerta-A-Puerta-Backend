@@ -1,13 +1,15 @@
 // src/sockets/socketService.js
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const env = require('../config/env');
 const registerTrackingEvents = require('./tracking');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'secreto_puerta_a_puerta_2026_super_seguro';
 
 function init(server) {
   const io = new Server(server, {
-    cors: { origin: '*' }
+    cors: {
+      origin: env.cors.origins,
+      credentials: true,
+    },
   });
 
   // 1. Middleware de Autenticación para WebSockets
@@ -18,11 +20,11 @@ function init(server) {
     }
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, env.jwt.secret);
       socket.usuario = decoded;
-      next();
+      return next();
     } catch (err) {
-      next(new Error('Token inválido o expirado.'));
+      return next(new Error('Token inválido o expirado.'));
     }
   });
 

@@ -5,7 +5,7 @@ const driverController = require('../controllers/driverController');
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
 
 router.use(authenticateJWT);
-router.use(authorizeRoles('repartidor', 'superadmin', 'admin_local'));
+router.use(authorizeRoles('repartidor'));
 
 /**
  * @swagger

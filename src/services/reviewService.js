@@ -5,12 +5,21 @@ const db = require('../config/db');
 class ReviewService {
   async submitReview({ pedidoId, clienteId, calificacionLocal, comentarioLocal, calificacionRepartidor, comentarioRepartidor }) {
     // Validar estado del pedido
-    const { rows } = await db.query(`SELECT id, local_id, repartidor_id, estado FROM pedidos WHERE id = $1`, [pedidoId]);
+    const { rows } = await db.query(
+      `SELECT id, cliente_id, local_id, repartidor_id, estado FROM pedidos WHERE id = $1`,
+      [pedidoId]
+    );
     const pedido = rows[0];
 
     if (!pedido) {
       const error = new Error('Pedido no encontrado');
       error.statusCode = 404;
+      throw error;
+    }
+
+    if (pedido.cliente_id !== clienteId) {
+      const error = new Error('No podés calificar un pedido que no te pertenece');
+      error.statusCode = 403;
       throw error;
     }
 

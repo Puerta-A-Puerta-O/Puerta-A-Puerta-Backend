@@ -6,6 +6,7 @@ const { validateCreateOrder, validateChangeStatus } = require('../validators/ord
 const { checkDeliveryCoverage } = require('../middlewares/coverageMiddleware');
 const validateRequest = require('../middlewares/validateRequest');
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
+const { requireOrderAccess } = require('../middlewares/ownershipMiddleware');
 
 router.use(authenticateJWT);
 
@@ -40,6 +41,7 @@ router.get(
  */
 router.post(
   '/', 
+  authorizeRoles('cliente'),
   validateCreateOrder, 
   checkDeliveryCoverage, 
   validateRequest, 
@@ -68,6 +70,7 @@ router.post(
  */
 router.get(
   '/:pedidoId',
+  requireOrderAccess(),
   orderController.getOrderById.bind(orderController)
 );
 
@@ -95,6 +98,7 @@ router.get(
  */
 router.get(
   '/:pedidoId/tracking',
+  requireOrderAccess(),
   orderController.getTrackingHistory.bind(orderController)
 );
 
@@ -140,7 +144,8 @@ router.get(
  */
 router.patch(
   '/:pedidoId/estado',
-  authorizeRoles('admin', 'admin_local', 'local', 'repartidor'),
+  authorizeRoles('admin_local', 'superadmin', 'repartidor'),
+  requireOrderAccess(),
   validateChangeStatus,
   validateRequest,
   orderController.changeStatus.bind(orderController)
@@ -171,6 +176,8 @@ router.patch(
  */
 router.patch(
   '/:pedidoId/ocultar',
+  authorizeRoles('cliente', 'admin_local', 'superadmin'),
+  requireOrderAccess(),
   orderController.hideOrder.bind(orderController)
 );
 
@@ -211,6 +218,8 @@ router.patch(
  */
 router.patch(
   '/:pedidoId/cancelar',
+  authorizeRoles('cliente', 'admin_local', 'superadmin'),
+  requireOrderAccess(),
   orderController.cancelOrder.bind(orderController)
 );
 
@@ -254,6 +263,8 @@ router.patch(
  */
 router.put(
   '/:pedidoId',
+  authorizeRoles('cliente', 'admin_local', 'superadmin'),
+  requireOrderAccess(),
   orderController.updateOrder.bind(orderController)
 );
 

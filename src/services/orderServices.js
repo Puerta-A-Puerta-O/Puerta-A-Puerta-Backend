@@ -128,8 +128,8 @@ class OrderService {
   /**
    * Consultar historial o lista filtrada de pedidos
    */
-  async getOrders({ clienteId, localId, estado, sinRepartidor }) {
-    return await orderRepository.findAll({ clienteId, localId, estado, sinRepartidor });
+  async getOrders({ clienteId, localId, localIds, repartidorId, estado, sinRepartidor }) {
+    return await orderRepository.findAll({ clienteId, localId, localIds, repartidorId, estado, sinRepartidor });
   }
   
   /**
@@ -150,7 +150,20 @@ class OrderService {
       throw error;
     }
 
-    const esAdmin = rolUsuario === 'admin' || rolUsuario === 'local';
+    const esAdmin = rolUsuario === 'superadmin';
+
+    if (rolUsuario === 'repartidor') {
+      if (pedido.repartidor_id !== usuarioId) {
+        const error = new Error('El pedido no está asignado a este repartidor');
+        error.statusCode = 403;
+        throw error;
+      }
+      if (repartidorId && repartidorId !== usuarioId) {
+        const error = new Error('Un repartidor no puede reasignar pedidos a otro repartidor');
+        error.statusCode = 403;
+        throw error;
+      }
+    }
 
     // Validar transición según máquina de estados
     if (!esAdmin && !esTransicionValida(pedido.estado, nuevoEstado)) {
@@ -195,7 +208,7 @@ class OrderService {
       throw error;
     }
 
-    const esAdmin = rolUsuario === 'admin' || rolUsuario === 'local';
+    const esAdmin = rolUsuario === 'superadmin' || rolUsuario === 'admin_local';
 
     if (!esAdmin && pedido.estado !== 'creado' && pedido.estado !== 'confirmado') {
       const error = new Error(`No se puede cancelar un pedido en estado '${pedido.estado}'`);
@@ -209,7 +222,17 @@ class OrderService {
       throw error;
     }
 
-    return await orderRepository.cancelOrder(pedidoId, usuarioId);
+    // El repositorio actualiza por cliente_id; si el que cancela es staff,
+    // usamos al dueño real del pedido para conservar la condición de fila.
+    const clientePropietario = esAdmin ? pedido.cliente_id : usuarioId;
+    const cancelado = await orderRepository.cancelOrder(pedidoId, clientePropietario);
+
+    if (!cancelado && esAdmin) {
+      // El staff puede cancelar pedidos que ya no están en creado/confirmado.
+      return await orderRepository.updateStatus(pedidoId, 'cancelado', null, usuarioId);
+    }
+
+    return cancelado;
   }
 
   /**
@@ -223,7 +246,7 @@ class OrderService {
       throw error;
     }
 
-    const esAdmin = rolUsuario === 'admin' || rolUsuario === 'local';
+    const esAdmin = rolUsuario === 'superadmin' || rolUsuario === 'admin_local';
 
     if (!esAdmin && pedido.estado !== 'creado') {
       const error = new Error('Solo se pueden editar pedidos que aún no han sido confirmados');
@@ -231,7 +254,8 @@ class OrderService {
       throw error;
     }
 
-    return await orderRepository.updateOrderDetails(pedidoId, clienteId, data);
+    const clientePropietario = esAdmin ? pedido.cliente_id : clienteId;
+    return await orderRepository.updateOrderDetails(pedidoId, clientePropietario, data);
   }
 }
 

@@ -2,16 +2,26 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const userRepository = require('../repositories/userRepository');
+const env = require('../config/env');
+const { ROLES_PUBLICOS } = require('../validators/authValidator');
 
 const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET || 'secreto_puerta_a_puerta_2026_super_seguro';
-const JWT_EXPIRES_IN = '7d';
 
 class AuthService {
   async register({ nombre, email, telefono, password, rol }) {
+    const rolSolicitado = rol || 'cliente';
+
+    if (!ROLES_PUBLICOS.includes(rolSolicitado)) {
+      const error = new Error(`El rol '${rolSolicitado}' no puede registrarse públicamente`);
+      error.statusCode = 403;
+      throw error;
+    }
+
     const userExists = await userRepository.findByEmail(email);
     if (userExists) {
-      throw new Error('El correo electrónico ya se encuentra registrado');
+      const error = new Error('El correo electrónico ya se encuentra registrado');
+      error.statusCode = 409;
+      throw error;
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -20,7 +30,7 @@ class AuthService {
       email,
       telefono,
       passwordHash,
-      rol,
+      rol: rolSolicitado,
     });
 
     const token = this.generateToken(newUser);
@@ -30,12 +40,16 @@ class AuthService {
   async login(email, password) {
     const user = await userRepository.findByEmail(email);
     if (!user) {
-      throw new Error('Credenciales inválidas');
+      const error = new Error('Credenciales inválidas');
+      error.statusCode = 401;
+      throw error;
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      throw new Error('Credenciales inválidas');
+      const error = new Error('Credenciales inválidas');
+      error.statusCode = 401;
+      throw error;
     }
 
     // Excluimos la contraseña de la respuesta
@@ -47,8 +61,8 @@ class AuthService {
   generateToken(user) {
     return jwt.sign(
       { id: user.id, rol: user.rol, email: user.email },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      env.jwt.secret,
+      { expiresIn: env.jwt.expiresIn }
     );
   }
 }

@@ -1,4 +1,6 @@
 const orderService = require('../services/orderServices');
+const authorizationService = require('../services/authorizationService');
+const httpError = require('../utils/httpError');
 
 class OrderController {
   /**
@@ -57,16 +59,39 @@ class OrderController {
    */
   async getOrders(req, res, next) {
     try {
-      const userRole = req.user.rol || req.user.role;
-      const clienteId = userRole === 'cliente' ? req.user.id : (req.query.clienteId || null);
+      const user = req.user;
+      const userRole = user.rol || user.role;
       const { localId, estado } = req.query;
       const sinRepartidor = req.query.sinRepartidor === 'true';
 
-      const pedidos = await orderService.getOrders({ 
-        clienteId, 
-        localId, 
-        estado, 
-        sinRepartidor 
+      let clienteId = null;
+      let repartidorId = null;
+      let localIds = null;
+
+      if (userRole === 'cliente') {
+        clienteId = user.id;
+      } else if (userRole === 'repartidor') {
+        repartidorId = user.id;
+      } else if (userRole === 'admin_local') {
+        if (localId) {
+          await authorizationService.assertLocalOwnership(localId, user);
+        } else {
+          localIds = await authorizationService.getOwnedLocalIds(user);
+          if (localIds.length === 0) {
+            return res.status(200).json({ status: 'success', data: [] });
+          }
+        }
+      } else if (userRole !== 'superadmin') {
+        throw httpError('No tienes permisos suficientes', 403);
+      }
+
+      const pedidos = await orderService.getOrders({
+        clienteId,
+        localId,
+        localIds,
+        repartidorId,
+        estado,
+        sinRepartidor,
       });
 
       return res.status(200).json({
@@ -157,6 +182,18 @@ class OrderController {
         usuarioId,
         rolUsuario,
       });
+
+      // Notificar a cliente y repartidor en tiempo real.
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`pedido_${pedidoId}`).emit('estado_actualizado', {
+          pedidoId,
+          nuevoEstado: pedidoActualizado.estado,
+          estado: pedidoActualizado.estado,
+          pedido: pedidoActualizado,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       return res.status(200).json({
         status: 'success',

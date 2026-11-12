@@ -104,9 +104,9 @@ class GeoRepository {
     const query = `
       SELECT 
         CASE 
-          WHEN poligono_cobertura IS NULL THEN true
+          WHEN cobertura IS NULL THEN true
           ELSE ST_Contains(
-            poligono_cobertura, 
+            cobertura, 
             ST_SetSRID(ST_MakePoint($1, $2), 4326)
           )
         END AS en_cobertura

@@ -28,8 +28,8 @@ async function seed() {
 
     // 3. Crear Local
     const insertLocalQuery = `
-      INSERT INTO locales (nombre, direccion, ubicacion)
-      VALUES ('Pizzería Don Remolo', 'Av. Corrientes 1234', ST_SetSRID(ST_MakePoint(-58.381592, -34.603722), 4326))
+      INSERT INTO locales (nombre, direccion, telefono, ubicacion)
+      VALUES ('Pizzería Don Remolo', 'Av. Corrientes 1234', '+541100000000', ST_SetSRID(ST_MakePoint(-58.381592, -34.603722), 4326))
       RETURNING id;
     `;
     const localRes = await client.query(insertLocalQuery);

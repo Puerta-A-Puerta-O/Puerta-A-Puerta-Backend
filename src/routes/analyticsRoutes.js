@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const analyticsController = require('../controllers/analyticsController');
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
+const { requireLocalOwnership } = require('../middlewares/ownershipMiddleware');
 
 /**
  * @swagger
@@ -39,6 +40,7 @@ router.get(
   '/locales/:localId/dashboard', 
   authenticateJWT, 
   authorizeRoles('admin_local', 'superadmin'), 
+  requireLocalOwnership('localId'),
   analyticsController.getDashboard.bind(analyticsController)
 );
 

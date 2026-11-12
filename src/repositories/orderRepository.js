@@ -19,7 +19,7 @@ class OrderRepository {
         VALUES (
           $1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326)::geography, $6, $7, 'creado'
         )
-        RETURNING id, cliente_id, local_id, estado, monto_total, direccion_entrega, 
+        RETURNING id, cliente_id, local_id, estado, monto_total, monto_total AS "montoTotal", direccion_entrega, 
                   ST_X(ubicacion_entrega::geometry) AS longitud,
                   ST_Y(ubicacion_entrega::geometry) AS latitud,
                   notas, creado_en;
@@ -100,7 +100,7 @@ class OrderRepository {
   /**
    * Lista de pedidos filtrada opcionalmente por cliente_id o local_id
    */
-  async findAll({ clienteId, localId, estado, sinRepartidor } = {}) {
+  async findAll({ clienteId, localId, localIds, repartidorId, estado, sinRepartidor } = {}) {
     let query = `
       SELECT p.id, p.cliente_id, p.local_id, p.repartidor_id, p.estado, p.monto_total, 
              p.direccion_entrega, p.notas, p.creado_en, p.actualizado_en
@@ -117,6 +117,16 @@ class OrderRepository {
     if (localId) {
       values.push(localId);
       query += ` AND p.local_id = $${values.length}`;
+    }
+
+    if (Array.isArray(localIds)) {
+      values.push(localIds);
+      query += ` AND p.local_id = ANY($${values.length}::uuid[])`;
+    }
+
+    if (repartidorId) {
+      values.push(repartidorId);
+      query += ` AND p.repartidor_id = $${values.length}`;
     }
 
     if (estado) {

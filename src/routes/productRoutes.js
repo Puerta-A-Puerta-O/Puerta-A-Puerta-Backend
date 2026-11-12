@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const productController = require('../controllers/productController');
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
+const { requireLocalOwnership, requireProductOwnership } = require('../middlewares/ownershipMiddleware');
 
 /**
  * @swagger
@@ -92,14 +93,16 @@ router.use(authenticateJWT);
 // Crear un nuevo producto en el local
 router.post(
   '/', 
-  authorizeRoles('admin_local', 'superadmin', 'admin'), 
+  authorizeRoles('admin_local', 'superadmin'), 
+  requireLocalOwnership('localId'),
   productController.createProduct
 );
 
 // Modificar disponibilidad/stock de un producto específico
 router.patch(
   '/:id/stock', 
-  authorizeRoles('admin_local', 'superadmin', 'admin'), 
+  authorizeRoles('admin_local', 'superadmin'), 
+  requireProductOwnership(),
   productController.updateStock
 );
 

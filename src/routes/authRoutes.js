@@ -2,6 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const { validateRegister, validateLogin } = require('../validators/authValidator');
+const validateRequest = require('../middlewares/validateRequest');
 
 /**
  * @swagger
@@ -35,7 +37,7 @@ const authController = require('../controllers/authController');
  *                 type: string
  *               rol:
  *                 type: string
- *                 enum: [cliente, repartidor, local, admin_local]
+ *                 enum: [cliente, repartidor]
  *     responses:
  *       201:
  *         description: Usuario registrado exitosamente
@@ -65,8 +67,8 @@ const authController = require('../controllers/authController');
  *         description: Autenticación exitosa
  */
 
-router.post('/register', (req, res) => authController.register(req, res));
-router.post('/login', (req, res) => authController.login(req, res));
+router.post('/register', validateRegister, validateRequest, authController.register);
+router.post('/login', validateLogin, validateRequest, authController.login);
 
 // ⚠️ ESTA LÍNEA ES IMPRESCINDIBLE:
 module.exports = router;
