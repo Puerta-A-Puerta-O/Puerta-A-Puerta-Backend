@@ -24,10 +24,11 @@ describe('🌐 Pruebas de Geofencing y Tracking GPS', () => {
   beforeAll(async () => {
     // 1. Crear local con polígono de cobertura
     const localRes = await db.query(`
-      INSERT INTO locales (nombre, direccion, ubicacion, poligono_cobertura)
+      INSERT INTO locales (nombre, direccion, telefono, ubicacion, cobertura)
       VALUES (
         'Pizzería Geofenced', 
         'Av. Colón 500', 
+        '+541100000001',
         ST_SetSRID(ST_MakePoint(-64.1833, -31.4167), 4326)::geography,
         ST_GeomFromText($1, 4326)
       )

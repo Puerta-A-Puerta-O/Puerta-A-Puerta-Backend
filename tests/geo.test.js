@@ -14,8 +14,8 @@ describe('🌐 Pruebas Geográficas con PostGIS y Asignación', () => {
   beforeAll(async () => {
     // 1. Crear local en Córdoba Centro
     const localRes = await db.query(`
-      INSERT INTO locales (nombre, direccion, ubicacion)
-      VALUES ('Pizzería Centro', 'Av. Colón 100', ST_SetSRID(ST_MakePoint(-64.1833, -31.4167), 4326)::geography)
+      INSERT INTO locales (nombre, direccion, telefono, ubicacion)
+      VALUES ('Pizzería Centro', 'Av. Colón 100', '+541100000002', ST_SetSRID(ST_MakePoint(-64.1833, -31.4167), 4326)::geography)
       RETURNING id;
     `);
     localId = localRes.rows[0].id;

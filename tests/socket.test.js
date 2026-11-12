@@ -13,6 +13,8 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
   let tokenRepartidor;
   let tokenAdminLocal;
   let pedidoIdPrueba;
+  let localIdPrueba = null;
+  let localFueCreadoEnTest = false;
   const PORT = 4001;
   const SERVER_URL = `http://localhost:${PORT}`;
 
@@ -43,8 +45,52 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
       .send({ email: 'local@prueba.com', password: 'Password123!' });
     tokenAdminLocal = resAdmin.body.token || resAdmin.body.data?.token;
 
-    // 3. Obtener un Pedido existente para usar en las pruebas
-    const pedidoRes = await db.query('SELECT id FROM pedidos LIMIT 1;');
+    // 3. Crear un pedido de prueba asignado al repartidor y a un local
+    //    administrado por el admin_local.
+    const usuariosRes = await db.query(`
+      SELECT email, id, rol FROM usuarios
+      WHERE email IN ('cliente@prueba.com', 'repartidor@prueba.com', 'local@prueba.com');
+    `);
+    const usuarioPorEmail = Object.fromEntries(usuariosRes.rows.map((u) => [u.email, u]));
+    const cliente = usuarioPorEmail['cliente@prueba.com'];
+    const repartidor = usuarioPorEmail['repartidor@prueba.com'];
+    const adminLocal = usuarioPorEmail['local@prueba.com'];
+
+    if (!cliente || !repartidor || !adminLocal) {
+      throw new Error('Faltan usuarios de prueba. Ejecutá npm run seed antes de los tests.');
+    }
+
+    const localRes = await db.query(`
+      SELECT l.id
+      FROM locales l
+      LEFT JOIN usuario_locales ul ON ul.local_id = l.id
+      WHERE l.usuario_id = $1 OR ul.usuario_id = $1
+      LIMIT 1;
+    `, [adminLocal.id]);
+
+    if (localRes.rows.length > 0) {
+      localIdPrueba = localRes.rows[0].id;
+    } else {
+      const nuevoLocal = await db.query(`
+        INSERT INTO locales (usuario_id, nombre, direccion, telefono, ubicacion)
+        VALUES ($1, 'Local Socket Test', 'Av. Test 123', '+541100000000',
+                ST_SetSRID(ST_MakePoint(-58.381592, -34.603722), 4326)::geography)
+        RETURNING id;
+      `, [adminLocal.id]);
+      localIdPrueba = nuevoLocal.rows[0].id;
+      localFueCreadoEnTest = true;
+    }
+
+    const pedidoRes = await db.query(`
+      INSERT INTO pedidos (
+        cliente_id, local_id, repartidor_id, estado, direccion_entrega,
+        ubicacion_entrega, monto_total
+      )
+      VALUES ($1, $2, $3, 'creado', 'Av. Corrientes 5000',
+              ST_SetSRID(ST_MakePoint(-58.381592, -34.603722), 4326)::geography, 1500)
+      RETURNING id;
+    `, [cliente.id, localIdPrueba, repartidor.id]);
+
     pedidoIdPrueba = pedidoRes.rows[0].id;
   });
 
@@ -52,6 +98,13 @@ describe('⚡ Pruebas en Tiempo Real - WebSockets (Socket.io)', () => {
     if (socketCliente?.connected) socketCliente.disconnect();
     if (socketRepartidor?.connected) socketRepartidor.disconnect();
     await new Promise((resolve) => server.close(resolve));
+
+    if (pedidoIdPrueba) {
+      await db.query('DELETE FROM pedidos WHERE id = $1;', [pedidoIdPrueba]);
+    }
+    if (localFueCreadoEnTest && localIdPrueba) {
+      await db.query('DELETE FROM locales WHERE id = $1;', [localIdPrueba]);
+    }
     await db.pool.end();
   });
 

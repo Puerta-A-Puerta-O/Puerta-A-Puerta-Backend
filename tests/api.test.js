@@ -11,14 +11,24 @@ describe('🧪 Pruebas de Integración - API Puerta a Puerta', () => {
   let precioProductoPrueba;
 
   beforeAll(async () => {
-    // 1. Obtener local de prueba desde la base de datos
-    const localRes = await db.query('SELECT id FROM locales LIMIT 1;');
+    // 1. Obtener un local administrado por el usuario local@prueba.com
+    const localRes = await db.query(`
+      SELECT l.id
+      FROM locales l
+      JOIN usuario_locales ul ON ul.local_id = l.id
+      JOIN usuarios u ON u.id = ul.usuario_id
+      WHERE u.email = 'local@prueba.com'
+      LIMIT 1;
+    `);
     if (localRes.rows.length > 0) {
       localIdPrueba = localRes.rows[0].id;
+    } else {
+      const fallbackLocal = await db.query('SELECT id FROM locales LIMIT 1;');
+      localIdPrueba = fallbackLocal.rows[0]?.id;
     }
 
     // 2. Obtener producto de prueba con su precio real
-    const prodRes = await db.query('SELECT id, precio FROM productos LIMIT 1;');
+    const prodRes = await db.query('SELECT id, precio FROM productos WHERE local_id = $1 LIMIT 1;', [localIdPrueba]);
     if (prodRes.rows.length > 0) {
       productoIdPrueba = prodRes.rows[0].id;
       precioProductoPrueba = Number(prodRes.rows[0].precio);
