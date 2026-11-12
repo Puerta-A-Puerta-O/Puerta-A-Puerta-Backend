@@ -84,3 +84,7 @@ logs/
 
 API_DOCUMENTATION/
 *.API_DOCUMENTATION
+
+OpenCode
+.opencode.json
+opencode.json
