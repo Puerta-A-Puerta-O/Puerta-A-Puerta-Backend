@@ -45,7 +45,8 @@ class PaymentController {
 
       let payload;
       try {
-        payload = JSON.parse(rawBody.toString('utf8') || '{}');
+        const parsed = JSON.parse(rawBody.toString('utf8') || '{}');
+        payload = parsed && typeof parsed === 'object' ? parsed : {};
       } catch (error) {
         return res.status(400).json({ status: 'error', mensaje: 'Payload JSON inválido' });
       }
