@@ -1,8 +1,23 @@
 // src/routes/paymentRoutes.js
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const paymentController = require('../controllers/paymentController');
 const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddleware');
+const { requireOrderAccess } = require('../middlewares/ownershipMiddleware');
+const env = require('../config/env');
+
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.isTest,
+  message: {
+    status: 'fail',
+    message: 'Demasiadas notificaciones de pago. Intente más tarde.'
+  }
+});
 
 /**
  * @swagger
@@ -33,7 +48,13 @@ const { authenticateJWT, authorizeRoles } = require('../middlewares/authMiddlewa
  *       201:
  *         description: Intención de pago generada exitosamente
  */
-router.post('/intent', authenticateJWT, paymentController.createPaymentIntent.bind(paymentController));
+router.post(
+  '/intent',
+  authenticateJWT,
+  authorizeRoles('cliente', 'superadmin'),
+  requireOrderAccess(),
+  paymentController.createPaymentIntent.bind(paymentController)
+);
 
 /**
  * @swagger
@@ -58,7 +79,7 @@ router.post('/intent', authenticateJWT, paymentController.createPaymentIntent.bi
  *       200:
  *         description: Webhook recibido y procesado
  */
-router.post('/webhook', paymentController.handleWebhook.bind(paymentController));
+router.post('/webhook', webhookLimiter, paymentController.handleWebhook.bind(paymentController));
 
 
 // En src/routes/paymentRoutes.js
@@ -82,7 +103,12 @@ router.post('/webhook', paymentController.handleWebhook.bind(paymentController))
  *       200:
  *         description: Payload del QR generado exitosamente
  */
-router.get('/pedidos/:pedidoId/qr', authenticateJWT, paymentController.getPaymentQR.bind(paymentController));
+router.get(
+  '/pedidos/:pedidoId/qr',
+  authenticateJWT,
+  requireOrderAccess(),
+  paymentController.getPaymentQR.bind(paymentController)
+);
 
 /**
  * @swagger
@@ -118,6 +144,7 @@ router.post(
   '/pedidos/:pedidoId/confirmar-manual', 
   authenticateJWT, 
   authorizeRoles('admin_local', 'repartidor', 'superadmin'), 
+  requireOrderAccess(),
   paymentController.confirmManualPayment.bind(paymentController)
 );
 

@@ -1,5 +1,6 @@
 // src/controllers/paymentController.js
 const paymentService = require('../services/paymentService');
+const env = require('../config/env');
 
 class PaymentController {
   async createPaymentIntent(req, res, next) {
@@ -27,18 +28,60 @@ class PaymentController {
 
   async handleWebhook(req, res, next) {
     try {
-      const { preferenceId, status, paymentId } = req.body;
+      const secret = env.payments.mercadopagoWebhookSecret;
 
-      if (!preferenceId || !status) {
-        return res.status(400).json({ status: 'error', mensaje: 'Faltan parámetros requeridos de la notificación' });
+      if (!secret) {
+        return res.status(503).json({
+          status: 'error',
+          mensaje: 'El webhook de pagos no está configurado (falta MERCADOPAGO_WEBHOOK_SECRET)'
+        });
       }
 
-      const pago = await paymentService.handleWebhookNotification({ preferenceId, status, paymentId });
+      // express.raw deja el body como Buffer para poder validar la firma
+      // exactamente sobre los bytes recibidos.
+      const rawBody = Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.from(JSON.stringify(req.body || {}));
+
+      let payload;
+      try {
+        payload = JSON.parse(rawBody.toString('utf8') || '{}');
+      } catch (error) {
+        return res.status(400).json({ status: 'error', mensaje: 'Payload JSON inválido' });
+      }
+
+      const dataId =
+        req.query?.['data.id'] ||
+        payload.data?.id ||
+        payload.dataId ||
+        payload.paymentId ||
+        payload.id;
+
+      const firmaValida = paymentService.verifyWebhookSignature({
+        headers: req.headers,
+        dataId,
+        secret
+      });
+
+      if (!firmaValida) {
+        return res.status(401).json({
+          status: 'error',
+          mensaje: 'Firma de webhook inválida'
+        });
+      }
+
+      const resultado = await paymentService.processWebhookEvent({
+        payload,
+        headers: req.headers,
+        query: req.query
+      });
 
       return res.status(200).json({
         status: 'success',
-        mensaje: 'Webhook procesado correctamente',
-        data: pago
+        mensaje: resultado.duplicado
+          ? 'Evento ya procesado previamente'
+          : 'Webhook procesado correctamente',
+        data: resultado
       });
     } catch (error) {
       next(error);
